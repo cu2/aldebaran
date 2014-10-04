@@ -1,82 +1,104 @@
 import datetime
+import sys
 import time
 
+from instructions import *
 
-TERM_COLORS = True
 
+class Log(object):
 
-def log(part, msg, c=None):
+    def __init__(self, verbose=True):
+        self.term_colors = True
+        self.verbose = verbose
+        self.part_colors = {
+            'aldebaran': self.col('0;31'),
+            'clock': self.col('1;30'),
+            'cpu': self.col('0;32'),
+            'ram': self.col('0;36'),
+            'print': self.col('37;1'),
+        }
 
-    def col(c=None):
-        if not TERM_COLORS:
+    def col(self, colstr=None):
+        if not self.term_colors:
             return ''
-        if c is None:
+        if colstr is None:
             return '\033[0m'
         else:
-            return '\033[%s;%sm' % c
+            return '\033[%sm' % colstr
 
-    part_colours = {
-        'aldebaran': col((0, 31)),
-        'clock': col((1, 30)),
-        'cpu': col((0, 32)),
-        'ram': col((0, 36)),
-        'print': col((0, 41)),
-    }
-
-    if c:
-        pre_msg = col(c)
-    else:
-        pre_msg = part_colours.get(part, '')
-    print '%s[%s] %s%s' % (
-        pre_msg,
-        part,
-        msg,
-        col(),
-    )
+    def log(self, part, msg):
+        if not self.verbose:
+            return
+        print '%s[%s] %s%s' % (
+            self.part_colors.get(part, ''),
+            part,
+            msg,
+            self.col(),
+        )
 
 
-class Aldebaran(object):
+class Hardware(object):
 
-    def __init__(self, clock, cpu, ram):
+    def __init__(self, log=None):
+        if log:
+            self.log = log
+        else:
+            self.log = Log(False)
+
+
+class Aldebaran(Hardware):
+
+    def __init__(self, clock, cpu, ram, bios, log=None):
+        Hardware.__init__(self, log)
         self.clock = clock
         self.cpu = cpu
         self.ram = ram
-        self.set_verbosity(True)
+        self.bios = bios
         # architecture:
         self.cpu.ram = self.ram
         self.clock.cpu = self.cpu
 
-    def set_verbosity(self, verbose):
-        self.verbose = verbose
-        self.clock.set_verbosity(verbose)
-        self.cpu.set_verbosity(verbose)
-        self.ram.set_verbosity(verbose)
+    def load_bios(self):
+        self.log.log('aldebaran', 'Loading BIOS...')
+        for pos, content in enumerate(self.bios.content):
+            if is_instruction(content):
+                if content in self.cpu.instruction_set:
+                    self.ram.write(pos, self.cpu.instruction_set.index(content))
+                else:
+                    self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.instruction_name, pos))
+                    return 1
+                continue
+            self.ram.write(pos, content)
+        self.log.log('aldebaran', 'BIOS loaded.')
+        return 0
 
     def run(self):
-        if self.verbose: log('aldebaran', 'started')
+        self.log.log('aldebaran', 'Started.')
         self.clock.run()
-        if self.verbose: log('aldebaran', 'stopped')
+        self.log.log('aldebaran', 'Stopped.')
 
 
-class Clock(object):
+class Clock(Hardware):
 
-    def __init__(self, speed):
+    def __init__(self, speed, log=None):
+        Hardware.__init__(self, log)
         self.speed = speed
+        self.start_time = None
         self.cpu = None
 
-    def set_verbosity(self, verbose):
-        self.verbose = verbose
-
     def run(self):
-        if self.verbose: log('clock', 'started')
+        if self.cpu is None:
+            self.log.log('clock', 'ERROR: Cannot run without CPU.')
+            return
+        self.log.log('clock', 'Started.')
         self.start_time = time.time()
         try:
             while True:
-                if self.verbose: log('clock', 'beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
+                self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
                 self.cpu.step()
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
-            if self.verbose: log('clock', 'stopped')
+            self.log.log('clock', 'Stopped.')
 
     def sleep(self):
         sleep_time = self.start_time + self.speed - time.time()
@@ -85,97 +107,67 @@ class Clock(object):
         self.start_time = time.time()
 
 
-class Instruction(object):
+class CPU(Hardware):
 
-    def __init__(self, ip, arguments=None):
-        self.ip = ip
-        self.arguments = arguments
-
-    def do(self):
-        pass
-
-    def next_ip(self):
-        return self.ip + self.instruction_size
-
-
-class InstHalt(Instruction):
-
-    instruction_name = 'halt'
-    instruction_size = 1
-
-    def next_ip(self):
-        return self.ip
-
-
-class InstPrint(Instruction):
-
-    instruction_name = 'print'
-    instruction_size = 2
-
-    def do(self):
-        log('print', chr(self.arguments[0]))
-
-
-class InstJump(Instruction):
-
-    instruction_name = 'jump'
-    instruction_size = 2
-
-    def next_ip(self):
-        return self.arguments[0]
-
-
-class CPU(object):
-
-    def __init__(self):
+    def __init__(self, instruction_set, log=None):
+        Hardware.__init__(self, log)
+        self.instruction_set = instruction_set
         self.ram = None
         self.registers = {
             'IP': 0,
         }
-        self.instruction_set = [
-            InstHalt,
-            InstPrint,
-            InstJump,
-        ]
-
-    def set_verbosity(self, verbose):
-        self.verbose = verbose
 
     def step(self):
-        if self.verbose: log('cpu', 'step (IP=%s)' % self.registers['IP'])
+        if self.ram is None:
+            self.log.log('cpu', 'ERROR: Cannot run without RAM.')
+            return
+        self.log.log('cpu', 'IP=%s' % self.registers['IP'])
         current_instruction = self.instruction_set[self.ram.read(self.registers['IP'])]
         current_instruction_size = current_instruction.instruction_size
         if current_instruction_size > 1:
             arguments = [self.ram.read(self.registers['IP'] + i) for i in range(1, current_instruction_size)]
-            inst = current_instruction(self.registers['IP'], arguments)
-            if self.verbose: log('cpu', '%s(%s)' % (current_instruction.instruction_name, ', '.join(map(str, arguments))))
+            inst = current_instruction(self.registers['IP'], self.log, arguments)
+            self.log.log('cpu', '%s(%s)' % (current_instruction.instruction_name, ', '.join(map(str, arguments))))
         else:
-            inst = current_instruction(self.registers['IP'])
-            if self.verbose: log('cpu', '%s' % current_instruction.instruction_name)
+            inst = current_instruction(self.registers['IP'], self.log)
+            self.log.log('cpu', '%s' % current_instruction.instruction_name)
         inst.do()
         self.registers['IP'] = inst.next_ip() % self.ram.size
 
 
-class RAM(object):
+class RAM(Hardware):
 
-    def __init__(self, size):
+    def __init__(self, size, log=None):
+        Hardware.__init__(self, log)
         self.size = size
         self.mem = [0] * self.size
 
-    def set_verbosity(self, verbose):
-        self.verbose = verbose
-
     def read(self, pos):
         pos = pos % self.size
-        if self.verbose: log('ram', 'read @ %s: %s' % (pos, self.mem[pos]))
+        self.log.log('ram', 'Read %s from %s.' % (self.mem[pos], pos))
         return self.mem[pos]
+
+    def write(self, pos, content):
+        pos = pos % self.size
+        self.mem[pos] = content
+        self.log.log('ram', 'Written %s to %s.' % (content, pos))
+
+
+class BIOS(Hardware):
+
+    def __init__(self, content):
+        Hardware.__init__(self)
+        self.content = content
 
 
 def main():
-    clock = Clock(1)
-    cpu = CPU()
-    ram = RAM(64)
-    bios = [
+    # config:
+    instruction_set = [
+        InstHalt,
+        InstPrint,
+        InstJump,
+    ]
+    bios = BIOS([
         InstPrint, ord('H'),
         InstPrint, ord('e'),
         InstPrint, ord('l'),
@@ -189,25 +181,23 @@ def main():
         InstPrint, ord('d'),
         InstPrint, ord('!'),
         InstJump, 0,
-    ]
-    for pos, content in enumerate(bios):
-        try:
-            if issubclass(content, Instruction):
-                if content in cpu.instruction_set:
-                    ram.mem[pos] = cpu.instruction_set.index(content)
-                else:
-                    print 'Unknown instruction: %s at %s' % (content(0).instruction_name, pos)
-                    return 1
-                continue
-        except TypeError:
-            pass
-        ram.mem[pos] = content
-    aldebaran = Aldebaran(clock, cpu, ram)
-    # aldebaran.set_verbosity(False)
+    ])
+    ram_size = 256
+    clock_speed = 0.5
+    # logging:
+    primary_log = Log()
+    seconday_log = Log(False)
+    #
+    clock = Clock(clock_speed, seconday_log)
+    ram = RAM(ram_size, seconday_log)
+    cpu = CPU(instruction_set, primary_log)
+    aldebaran = Aldebaran(clock, cpu, ram, bios, primary_log)
+    if 0 != aldebaran.load_bios():
+        return 1
     aldebaran.run()
     print ''
     return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
