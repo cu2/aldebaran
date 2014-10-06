@@ -7,7 +7,6 @@ def is_instruction(inst):
 
 class Instruction(object):
 
-    instruction_name = ''
     instruction_size = 1
 
     def __init__(self, ip, log, arguments=None):
@@ -22,28 +21,29 @@ class Instruction(object):
         return self.ip + self.instruction_size
 
 
-class InstHalt(Instruction):
+class NOP(Instruction):
+    pass
 
-    instruction_name = 'halt'
-    instruction_size = 1
+
+class HALT(Instruction):
 
     def next_ip(self):
         return self.ip
 
 
-class InstPrint(Instruction):
+class PRINT(Instruction):
 
-    instruction_name = 'print'
     instruction_size = 2
 
     def do(self):
-        self.log.log('print', chr(self.arguments[0]))
+        char = self.arguments[0]
+        self.log.log('print', chr(char))
 
 
-class InstJump(Instruction):
+class JUMP(Instruction):
 
-    instruction_name = 'jump'
     instruction_size = 2
 
     def next_ip(self):
-        return self.arguments[0]
+        pos = self.arguments[0]
+        return pos

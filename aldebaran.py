@@ -1,15 +1,18 @@
 import datetime
+import Queue
 import sys
+import threading
 import time
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from SocketServer import ThreadingMixIn
 
 from instructions import *
 
 
 class Log(object):
 
-    def __init__(self, verbose=True):
+    def __init__(self):
         self.term_colors = True
-        self.verbose = verbose
         self.part_colors = {
             'aldebaran': self.col('0;31'),
             'clock': self.col('1;30'),
@@ -21,14 +24,12 @@ class Log(object):
     def col(self, colstr=None):
         if not self.term_colors:
             return ''
-        if colstr is None:
-            return '\033[0m'
-        else:
+        if colstr:
             return '\033[%sm' % colstr
+        else:
+            return '\033[0m'
 
     def log(self, part, msg):
-        if not self.verbose:
-            return
         print '%s[%s] %s%s' % (
             self.part_colors.get(part, ''),
             part,
@@ -37,26 +38,35 @@ class Log(object):
         )
 
 
+class SilentLog(object):
+
+    def log(self, part, msg):
+        pass
+
+
 class Hardware(object):
 
     def __init__(self, log=None):
         if log:
             self.log = log
         else:
-            self.log = Log(False)
+            self.log = SilentLog()
 
 
 class Aldebaran(Hardware):
 
-    def __init__(self, clock, cpu, ram, bios, log=None):
+    def __init__(self, components, log=None):
         Hardware.__init__(self, log)
-        self.clock = clock
-        self.cpu = cpu
-        self.ram = ram
-        self.bios = bios
+        self.clock = components['clock']
+        self.cpu = components['cpu']
+        self.ram = components['ram']
+        self.bios = components['bios']
+        self.interrupt_queue = components['interrupt_queue']
+        self.interrupt_handler = components['interrupt_handler']
         # architecture:
-        self.cpu.ram = self.ram
-        self.clock.cpu = self.cpu
+        self.cpu.register_architecture(self.ram, self.interrupt_queue)
+        self.clock.register_architecture(self.cpu)
+        self.interrupt_handler.register_architecture(self.cpu, self.interrupt_queue)
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
@@ -65,7 +75,7 @@ class Aldebaran(Hardware):
                 if content in self.cpu.instruction_set:
                     self.ram.write(pos, self.cpu.instruction_set.index(content))
                 else:
-                    self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.instruction_name, pos))
+                    self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.__name__, pos))
                     return 1
                 continue
             self.ram.write(pos, content)
@@ -74,8 +84,14 @@ class Aldebaran(Hardware):
 
     def run(self):
         self.log.log('aldebaran', 'Started.')
-        self.clock.run()
+        retval = self.load_bios()
+        if retval == 0:
+            retval = self.interrupt_handler.start()
+            if retval == 0:
+                retval = self.clock.run()
+                self.interrupt_handler.stop()
         self.log.log('aldebaran', 'Stopped.')
+        return retval
 
 
 class Clock(Hardware):
@@ -86,10 +102,13 @@ class Clock(Hardware):
         self.start_time = None
         self.cpu = None
 
+    def register_architecture(self, cpu):
+        self.cpu = cpu
+
     def run(self):
-        if self.cpu is None:
+        if not self.cpu:
             self.log.log('clock', 'ERROR: Cannot run without CPU.')
-            return
+            return 1
         self.log.log('clock', 'Started.')
         self.start_time = time.time()
         try:
@@ -99,6 +118,7 @@ class Clock(Hardware):
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
             self.log.log('clock', 'Stopped.')
+        return 0
 
     def sleep(self):
         sleep_time = self.start_time + self.speed - time.time()
@@ -113,24 +133,38 @@ class CPU(Hardware):
         Hardware.__init__(self, log)
         self.instruction_set = instruction_set
         self.ram = None
+        self.interrupt_queue = None
         self.registers = {
             'IP': 0,
         }
 
+    def register_architecture(self, ram, interrupt_queue):
+        self.ram = ram
+        self.interrupt_queue = interrupt_queue
+
     def step(self):
-        if self.ram is None:
+        if not self.ram:
             self.log.log('cpu', 'ERROR: Cannot run without RAM.')
             return
+        if self.interrupt_queue:
+            interrupt_number = None
+            try:
+                interrupt_number = self.interrupt_queue.get_nowait()
+            except Queue.Empty:
+                pass
+            if interrupt_number:
+                self.log.log('cpu', 'interrupt: %s' % interrupt_number)
+                return
         self.log.log('cpu', 'IP=%s' % self.registers['IP'])
         current_instruction = self.instruction_set[self.ram.read(self.registers['IP'])]
         current_instruction_size = current_instruction.instruction_size
         if current_instruction_size > 1:
             arguments = [self.ram.read(self.registers['IP'] + i) for i in range(1, current_instruction_size)]
             inst = current_instruction(self.registers['IP'], self.log, arguments)
-            self.log.log('cpu', '%s(%s)' % (current_instruction.instruction_name, ', '.join(map(str, arguments))))
+            self.log.log('cpu', '%s(%s)' % (current_instruction.__name__, ', '.join(map(str, arguments))))
         else:
             inst = current_instruction(self.registers['IP'], self.log)
-            self.log.log('cpu', '%s' % current_instruction.instruction_name)
+            self.log.log('cpu', '%s' % current_instruction.__name__)
         inst.do()
         self.registers['IP'] = inst.next_ip() % self.ram.size
 
@@ -160,43 +194,100 @@ class BIOS(Hardware):
         self.content = content
 
 
+class InterruptHandler(Hardware):
+
+    class RequestHandler(BaseHTTPRequestHandler):
+
+        def do_POST(self):
+            interrupt_number = self.path.lstrip('/')
+            self.server.interrupt_queue.put(interrupt_number)
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(interrupt_number)
+            self.wfile.write('\n')
+
+        def log_message(self, format, *args):
+            return
+
+    class Server(ThreadingMixIn, HTTPServer):
+
+        def __init__(self, server_address, request_handler, cpu, interrupt_queue):
+            HTTPServer.__init__(self, server_address, request_handler)
+            self.cpu = cpu
+            self.interrupt_queue = interrupt_queue
+            self.daemon_threads = True
+
+    def __init__(self, host, port, log=None):
+        Hardware.__init__(self, log)
+        self.address = (host, port)
+        self.cpu = None
+        self.interrupt_queue = None
+
+    def register_architecture(self, cpu, interrupt_queue):
+        self.cpu = cpu
+        self.interrupt_queue = interrupt_queue
+
+    def start(self):
+        if not self.cpu:
+            self.log.log('interrupt_handler', 'ERROR: Cannot run without CPU.')
+            return 1
+        if not self.interrupt_queue:
+            self.log.log('interrupt_handler', 'ERROR: Cannot run without Interrupt Queue.')
+            return 1
+        self.log.log('interrupt_handler', 'Starting...')
+        self.server = self.Server(self.address, self.RequestHandler, self.cpu, self.interrupt_queue)
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.daemon = True
+        self.server_thread.start()
+        self.log.log('interrupt_handler', 'Started.')
+        return 0
+
+    def stop(self):
+        self.log.log('interrupt_handler', 'Stopping...')
+        self.server.shutdown()
+        self.log.log('interrupt_handler', 'Stopped.')
+
+
 def main():
     # config:
     instruction_set = [
-        InstHalt,
-        InstPrint,
-        InstJump,
+        NOP,
+        HALT,
+        PRINT,
+        JUMP,
     ]
     bios = BIOS([
-        InstPrint, ord('H'),
-        InstPrint, ord('e'),
-        InstPrint, ord('l'),
-        InstPrint, ord('l'),
-        InstPrint, ord('o'),
-        InstPrint, ord(' '),
-        InstPrint, ord('w'),
-        InstPrint, ord('o'),
-        InstPrint, ord('r'),
-        InstPrint, ord('l'),
-        InstPrint, ord('d'),
-        InstPrint, ord('!'),
-        InstJump, 0,
+        NOP,
+        PRINT, ord('H'),
+        PRINT, ord('e'),
+        PRINT, ord('l'),
+        PRINT, ord('l'),
+        PRINT, ord('o'),
+        PRINT, ord(' '),
+        PRINT, ord('w'),
+        PRINT, ord('o'),
+        PRINT, ord('r'),
+        PRINT, ord('l'),
+        PRINT, ord('d'),
+        PRINT, ord('!'),
+        JUMP, 0,
     ])
     ram_size = 256
-    clock_speed = 0.5
-    # logging:
-    primary_log = Log()
-    seconday_log = Log(False)
+    clock_speed = 1
+    host = 'localhost'
+    base_port = 35000
     #
-    clock = Clock(clock_speed, seconday_log)
-    ram = RAM(ram_size, seconday_log)
-    cpu = CPU(instruction_set, primary_log)
-    aldebaran = Aldebaran(clock, cpu, ram, bios, primary_log)
-    if 0 != aldebaran.load_bios():
-        return 1
-    aldebaran.run()
+    aldebaran = Aldebaran({
+        'clock': Clock(clock_speed),
+        'cpu': CPU(instruction_set, Log()),
+        'ram': RAM(ram_size),
+        'bios': bios,
+        'interrupt_queue': Queue.Queue(),
+        'interrupt_handler': InterruptHandler(host, base_port + 17, Log()),
+    }, Log())
+    retval = aldebaran.run()
     print ''
-    return 0
+    return retval
 
 
 if __name__ == '__main__':
