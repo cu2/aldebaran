@@ -1,63 +1,18 @@
 import datetime
 import Queue
 import sys
-import threading
 import time
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
 
 import aux
+import bios
+import interrupt_handler
 from instructions import *
 
 
-class Log(object):
-
-    def __init__(self):
-        self.term_colors = True
-        self.part_colors = {
-            'aldebaran': self.col('0;31'),
-            'clock': self.col('1;30'),
-            'cpu': self.col('0;32'),
-            'ram': self.col('0;36'),
-            'print': self.col('37;1'),
-        }
-
-    def col(self, colstr=None):
-        if not self.term_colors:
-            return ''
-        if colstr:
-            return '\033[%sm' % colstr
-        else:
-            return '\033[0m'
-
-    def log(self, part, msg):
-        print '%s[%s] %s%s' % (
-            self.part_colors.get(part, ''),
-            part,
-            msg,
-            self.col(),
-        )
-
-
-class SilentLog(object):
-
-    def log(self, part, msg):
-        pass
-
-
-class Hardware(object):
-
-    def __init__(self, log=None):
-        if log:
-            self.log = log
-        else:
-            self.log = SilentLog()
-
-
-class Aldebaran(Hardware):
+class Aldebaran(aux.Hardware):
 
     def __init__(self, components, log=None):
-        Hardware.__init__(self, log)
+        aux.Hardware.__init__(self, log)
         self.clock = components['clock']
         self.cpu = components['cpu']
         self.ram = components['ram']
@@ -103,10 +58,10 @@ class Aldebaran(Hardware):
         return retval
 
 
-class Clock(Hardware):
+class Clock(aux.Hardware):
 
     def __init__(self, speed, log=None):
-        Hardware.__init__(self, log)
+        aux.Hardware.__init__(self, log)
         self.speed = speed
         self.start_time = None
         self.cpu = None
@@ -138,10 +93,10 @@ class Clock(Hardware):
         self.start_time = time.time()
 
 
-class CPU(Hardware):
+class CPU(aux.Hardware):
 
     def __init__(self, instruction_set, log=None):
-        Hardware.__init__(self, log)
+        aux.Hardware.__init__(self, log)
         self.instruction_set = instruction_set
         self.ram = None
         self.interrupt_queue = None
@@ -212,10 +167,10 @@ class CPU(Hardware):
         return value
 
 
-class RAM(Hardware):
+class RAM(aux.Hardware):
 
     def __init__(self, size, log=None):
-        Hardware.__init__(self, log)
+        aux.Hardware.__init__(self, log)
         self.size = size
         self.mem = [0] * self.size
 
@@ -245,69 +200,6 @@ class RAM(Hardware):
         self.log.log('ram', 'Written word %s to %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
 
 
-class BIOS(Hardware):
-
-    def __init__(self, contents):
-        Hardware.__init__(self)
-        self.contents = contents
-
-
-class InterruptHandler(Hardware):
-
-    class RequestHandler(BaseHTTPRequestHandler):
-
-        def do_POST(self):
-            interrupt_number = self.path.lstrip('/')
-            self.server.log.log('interrupt_handler', 'Caught: %s' % interrupt_number)
-            self.server.interrupt_queue.put(interrupt_number)
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(interrupt_number)
-            self.wfile.write('\n')
-
-        def log_message(self, format, *args):
-            return
-
-    class Server(ThreadingMixIn, HTTPServer):
-
-        def __init__(self, server_address, request_handler, cpu, interrupt_queue, log):
-            HTTPServer.__init__(self, server_address, request_handler)
-            self.cpu = cpu
-            self.interrupt_queue = interrupt_queue
-            self.log = log
-            self.daemon_threads = True
-
-    def __init__(self, host, port, log=None):
-        Hardware.__init__(self, log)
-        self.address = (host, port)
-        self.cpu = None
-        self.interrupt_queue = None
-
-    def register_architecture(self, cpu, interrupt_queue):
-        self.cpu = cpu
-        self.interrupt_queue = interrupt_queue
-
-    def start(self):
-        if not self.cpu:
-            self.log.log('interrupt_handler', 'ERROR: Cannot run without CPU.')
-            return 1
-        if not self.interrupt_queue:
-            self.log.log('interrupt_handler', 'ERROR: Cannot run without Interrupt Queue.')
-            return 1
-        self.log.log('interrupt_handler', 'Starting...')
-        self.server = self.Server(self.address, self.RequestHandler, self.cpu, self.interrupt_queue, self.log)
-        self.server_thread = threading.Thread(target=self.server.serve_forever)
-        self.server_thread.daemon = True
-        self.server_thread.start()
-        self.log.log('interrupt_handler', 'Started.')
-        return 0
-
-    def stop(self):
-        self.log.log('interrupt_handler', 'Stopping...')
-        self.server.shutdown()
-        self.log.log('interrupt_handler', 'Stopped.')
-
-
 def main():
     # config:
     instruction_set = [
@@ -318,29 +210,6 @@ def main():
         PUSH,
         POP,
     ]
-    bios = BIOS({
-        'start': (0x0400, [
-            PUSH, 8, 0,
-            POP, 4, 7,
-            PRINT, ord('H'),
-            NOP,
-            PRINT, ord('e'),
-            PRINT, ord('l'),
-            PRINT, ord('l'),
-            PRINT, ord('o'),
-            PRINT, ord(' '),
-            PRINT, ord('w'),
-            PRINT, ord('o'),
-            PRINT, ord('r'),
-            PRINT, ord('l'),
-            PRINT, ord('d'),
-            PRINT, ord('!'),
-            JUMP, 4, 6,
-        ]),
-        'something': (0x0800, [
-            ord('Y'), NOP,
-        ])
-    })
     ram_size = 0x10000
     clock_speed = 0.5
     host = 'localhost'
@@ -348,12 +217,12 @@ def main():
     #
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
-        'cpu': CPU(instruction_set, Log()),
+        'cpu': CPU(instruction_set, aux.Log()),
         'ram': RAM(ram_size),
-        'bios': bios,
+        'bios': bios.example_bios,
         'interrupt_queue': Queue.Queue(),
-        'interrupt_handler': InterruptHandler(host, base_port + 17, Log()),
-    }, Log())
+        'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + 17, aux.Log()),
+    }, aux.Log())
     retval = aldebaran.run()
     print ''
     return retval

@@ -1,3 +1,47 @@
+class Log(object):
+
+    def __init__(self):
+        self.term_colors = True
+        self.part_colors = {
+            'aldebaran': self.col('0;31'),
+            'clock': self.col('1;30'),
+            'cpu': self.col('0;32'),
+            'ram': self.col('0;36'),
+            'print': self.col('37;1'),
+        }
+
+    def col(self, colstr=None):
+        if not self.term_colors:
+            return ''
+        if colstr:
+            return '\033[%sm' % colstr
+        else:
+            return '\033[0m'
+
+    def log(self, part, msg):
+        print '%s[%s] %s%s' % (
+            self.part_colors.get(part, ''),
+            part,
+            msg,
+            self.col(),
+        )
+
+
+class SilentLog(object):
+
+    def log(self, part, msg):
+        pass
+
+
+class Hardware(object):
+
+    def __init__(self, log=None):
+        if log:
+            self.log = log
+        else:
+            self.log = SilentLog()
+
+
 def bytes_to_word(high, low):
     return 256 * high + low
 
