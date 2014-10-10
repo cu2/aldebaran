@@ -6,6 +6,7 @@ import time
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 
+import aux
 from instructions import *
 
 
@@ -70,27 +71,35 @@ class Aldebaran(Hardware):
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
-        for pos, content in enumerate(self.bios.content):
-            if is_instruction(content):
-                if content in self.cpu.instruction_set:
-                    self.ram.write(pos, self.cpu.instruction_set.index(content))
-                else:
-                    self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.__name__, pos))
-                    return 1
-                continue
-            self.ram.write(pos, content)
+        for key, (start_pos, contents) in self.bios.contents.iteritems():
+            for rel_pos, content in enumerate(contents):
+                pos = start_pos + rel_pos
+                if is_instruction(content):
+                    if content in self.cpu.instruction_set:
+                        self.ram.write_byte(pos, self.cpu.instruction_set.index(content))
+                    else:
+                        self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.__name__, aux.word_to_str(pos)))
+                        return 1
+                    continue
+                self.ram.write_byte(pos, content)
         self.log.log('aldebaran', 'BIOS loaded.')
         return 0
 
     def run(self):
         self.log.log('aldebaran', 'Started.')
+        start_time = time.time()
         retval = self.load_bios()
         if retval == 0:
             retval = self.interrupt_handler.start()
             if retval == 0:
                 retval = self.clock.run()
                 self.interrupt_handler.stop()
-        self.log.log('aldebaran', 'Stopped.')
+        stop_time = time.time()
+        self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
+            self.clock.step_count,
+            round(stop_time - start_time, 2),
+            int(self.clock.step_count / (stop_time - start_time))
+        ))
         return retval
 
 
@@ -101,6 +110,7 @@ class Clock(Hardware):
         self.speed = speed
         self.start_time = None
         self.cpu = None
+        self.step_count = 0
 
     def register_architecture(self, cpu):
         self.cpu = cpu
@@ -115,6 +125,7 @@ class Clock(Hardware):
             while True:
                 self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
                 self.cpu.step()
+                self.step_count += 1
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
             self.log.log('clock', 'Stopped.')
@@ -135,12 +146,14 @@ class CPU(Hardware):
         self.ram = None
         self.interrupt_queue = None
         self.registers = {
-            'IP': 0,
+            'IP': 1024,
+            'SP': 0,
         }
 
     def register_architecture(self, ram, interrupt_queue):
         self.ram = ram
         self.interrupt_queue = interrupt_queue
+        self.registers['SP'] = self.ram.size - 1
 
     def step(self):
         if not self.ram:
@@ -155,18 +168,48 @@ class CPU(Hardware):
             if interrupt_number:
                 self.log.log('cpu', 'interrupt: %s' % interrupt_number)
                 return
-        self.log.log('cpu', 'IP=%s' % self.registers['IP'])
-        current_instruction = self.instruction_set[self.ram.read(self.registers['IP'])]
+        self.log.log('cpu', 'IP=%s' % aux.word_to_str(self.registers['IP']))
+        current_instruction = self.instruction_set[self.ram.read_byte(self.registers['IP'])]
         current_instruction_size = current_instruction.instruction_size
         if current_instruction_size > 1:
-            arguments = [self.ram.read(self.registers['IP'] + i) for i in range(1, current_instruction_size)]
-            inst = current_instruction(self.registers['IP'], self.log, arguments)
-            self.log.log('cpu', '%s(%s)' % (current_instruction.__name__, ', '.join(map(str, arguments))))
+            arguments = [self.ram.read_byte(self.registers['IP'] + i) for i in range(1, current_instruction_size)]
+            inst = current_instruction(self, arguments)
+            self.log.log('cpu', '%s(%s)' % (current_instruction.__name__, ', '.join(map(aux.byte_to_str, arguments))))
         else:
-            inst = current_instruction(self.registers['IP'], self.log)
+            inst = current_instruction(self)
             self.log.log('cpu', '%s' % current_instruction.__name__)
         inst.do()
         self.registers['IP'] = inst.next_ip() % self.ram.size
+
+    def stack_push_byte(self, value):
+        if self.registers['SP'] < 1:
+            raise Exception('Stack overflow')
+        self.ram.write_byte(self.registers['SP'], value)
+        self.log.log('cpu', 'pushed %s' % aux.byte_to_str(value))
+        self.registers['SP'] -= 1
+
+    def stack_pop_byte(self):
+        if self.registers['SP'] >= self.ram.size - 1:
+            raise Exception('Stack underflow')
+        self.registers['SP'] += 1
+        value = self.ram.read_byte(self.registers['SP'])
+        self.log.log('cpu', 'popped %s' % aux.byte_to_str(value))
+        return value
+
+    def stack_push_word(self, value):
+        if self.registers['SP'] < 2:
+            raise Exception('Stack overflow')
+        self.ram.write_word(self.registers['SP'], value)
+        self.log.log('cpu', 'pushed %s' % aux.word_to_str(value))
+        self.registers['SP'] -= 2
+
+    def stack_pop_word(self):
+        if self.registers['SP'] >= self.ram.size - 2:
+            raise Exception('Stack underflow')
+        self.registers['SP'] += 2
+        value = self.ram.read_word(self.registers['SP'])
+        self.log.log('cpu', 'popped %s' % aux.word_to_str(value))
+        return value
 
 
 class RAM(Hardware):
@@ -176,22 +219,37 @@ class RAM(Hardware):
         self.size = size
         self.mem = [0] * self.size
 
-    def read(self, pos):
+    def read_byte(self, pos):
         pos = pos % self.size
-        self.log.log('ram', 'Read %s from %s.' % (self.mem[pos], pos))
-        return self.mem[pos]
+        content = self.mem[pos]
+        self.log.log('ram', 'Read byte %s from %s.' % (aux.byte_to_str(content), aux.word_to_str(pos)))
+        return content
 
-    def write(self, pos, content):
+    def write_byte(self, pos, content):
         pos = pos % self.size
         self.mem[pos] = content
-        self.log.log('ram', 'Written %s to %s.' % (content, pos))
+        self.log.log('ram', 'Written byte %s to %s.' % (aux.byte_to_str(content), aux.word_to_str(pos)))
+
+    def read_word(self, pos):
+        pos1 = pos % self.size
+        pos2 = (pos + 1) % self.size
+        content = 256 * self.mem[pos1] + self.mem[pos2]
+        self.log.log('ram', 'Read word %s from %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
+        return content
+
+    def write_word(self, pos, content):
+        pos1 = pos % self.size
+        pos2 = (pos + 1) % self.size
+        self.mem[pos1] = content / 256
+        self.mem[pos2] = content % 256
+        self.log.log('ram', 'Written word %s to %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
 
 
 class BIOS(Hardware):
 
-    def __init__(self, content):
+    def __init__(self, contents):
         Hardware.__init__(self)
-        self.content = content
+        self.contents = contents
 
 
 class InterruptHandler(Hardware):
@@ -200,6 +258,7 @@ class InterruptHandler(Hardware):
 
         def do_POST(self):
             interrupt_number = self.path.lstrip('/')
+            self.server.log.log('interrupt_handler', 'Caught: %s' % interrupt_number)
             self.server.interrupt_queue.put(interrupt_number)
             self.send_response(200)
             self.end_headers()
@@ -211,10 +270,11 @@ class InterruptHandler(Hardware):
 
     class Server(ThreadingMixIn, HTTPServer):
 
-        def __init__(self, server_address, request_handler, cpu, interrupt_queue):
+        def __init__(self, server_address, request_handler, cpu, interrupt_queue, log):
             HTTPServer.__init__(self, server_address, request_handler)
             self.cpu = cpu
             self.interrupt_queue = interrupt_queue
+            self.log = log
             self.daemon_threads = True
 
     def __init__(self, host, port, log=None):
@@ -235,7 +295,7 @@ class InterruptHandler(Hardware):
             self.log.log('interrupt_handler', 'ERROR: Cannot run without Interrupt Queue.')
             return 1
         self.log.log('interrupt_handler', 'Starting...')
-        self.server = self.Server(self.address, self.RequestHandler, self.cpu, self.interrupt_queue)
+        self.server = self.Server(self.address, self.RequestHandler, self.cpu, self.interrupt_queue, self.log)
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
@@ -255,25 +315,34 @@ def main():
         HALT,
         PRINT,
         JUMP,
+        PUSH,
+        POP,
     ]
-    bios = BIOS([
-        NOP,
-        PRINT, ord('H'),
-        PRINT, ord('e'),
-        PRINT, ord('l'),
-        PRINT, ord('l'),
-        PRINT, ord('o'),
-        PRINT, ord(' '),
-        PRINT, ord('w'),
-        PRINT, ord('o'),
-        PRINT, ord('r'),
-        PRINT, ord('l'),
-        PRINT, ord('d'),
-        PRINT, ord('!'),
-        JUMP, 0,
-    ])
-    ram_size = 256
-    clock_speed = 1
+    bios = BIOS({
+        'start': (0x0400, [
+            PUSH, 8, 0,
+            POP, 4, 7,
+            PRINT, ord('H'),
+            NOP,
+            PRINT, ord('e'),
+            PRINT, ord('l'),
+            PRINT, ord('l'),
+            PRINT, ord('o'),
+            PRINT, ord(' '),
+            PRINT, ord('w'),
+            PRINT, ord('o'),
+            PRINT, ord('r'),
+            PRINT, ord('l'),
+            PRINT, ord('d'),
+            PRINT, ord('!'),
+            JUMP, 4, 6,
+        ]),
+        'something': (0x0800, [
+            ord('Y'), NOP,
+        ])
+    })
+    ram_size = 0x10000
+    clock_speed = 0.5
     host = 'localhost'
     base_port = 35000
     #
