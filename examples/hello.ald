@@ -1,0 +1,33 @@
+# This is a simple infinite hello world program
+
+SET_IV: # set IV[0] to label SOME_INTERRUPT
+        NOP  # not yet implemented
+
+START:
+        PRINT H
+        #INT
+        PRINT e
+        PRINT l
+        CALL SOME_SUB
+        PRINT l
+        PRINT o
+        PRINT
+        PRINT W
+        PRINT o
+        PRINT r
+        PRINT l
+        PRINT d
+        PRINT !
+        JUMP START
+
+SOME_INTERRUPT:
+        PRINT I
+        PRINT N
+        PRINT T
+        IRET
+
+SOME_SUB:
+        PRINT S
+        PRINT U
+        PRINT B
+        RET

@@ -47,6 +47,8 @@ def bytes_to_word(high, low):
 
 
 def word_to_bytes(word):
+    if word > 65535:
+        raise Exception('Word out of range: %s' % word)
     return (
         word / 256,
         word % 256,
@@ -59,3 +61,7 @@ def byte_to_str(byte):
 
 def word_to_str(word):
     return hex(word)[2:].zfill(4).upper()
+
+
+def str_to_int(str):
+    return int(str, 16)

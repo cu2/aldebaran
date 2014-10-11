@@ -3,10 +3,10 @@ import Queue
 import sys
 import time
 
+import assembler
 import aux
-import bios
+import instructions
 import interrupt_handler
-from instructions import *
 
 
 class Aldebaran(aux.Hardware):
@@ -29,13 +29,6 @@ class Aldebaran(aux.Hardware):
         for key, (start_pos, contents) in self.bios.contents.iteritems():
             for rel_pos, content in enumerate(contents):
                 pos = start_pos + rel_pos
-                if is_instruction(content):
-                    if content in self.cpu.instruction_set:
-                        self.ram.write_byte(pos, self.cpu.instruction_set.index(content))
-                    else:
-                        self.log.log('aldebaran', 'Unknown instruction: %s at %s' % (content.__name__, aux.word_to_str(pos)))
-                        return 1
-                    continue
                 self.ram.write_byte(pos, content)
         self.log.log('aldebaran', 'BIOS loaded.')
         return 0
@@ -95,14 +88,14 @@ class Clock(aux.Hardware):
 
 class CPU(aux.Hardware):
 
-    def __init__(self, instruction_set, log=None):
+    def __init__(self, entry_point, log=None):
         aux.Hardware.__init__(self, log)
-        self.instruction_set = instruction_set
         self.ram = None
         self.interrupt_queue = None
         self.registers = {
-            'IP': 1024,
+            'IP': entry_point,
             'SP': 0,
+            'AX': 0,
         }
 
     def register_architecture(self, ram, interrupt_queue):
@@ -130,15 +123,15 @@ class CPU(aux.Hardware):
                 self.call_int(interrupt_number)
                 return
         self.mini_debugger()
-        current_instruction = self.instruction_set[self.ram.read_byte(self.registers['IP'])]
-        current_instruction_size = current_instruction.instruction_size
+        current_instruction, current_subtype = instructions.get_instruction_by_opcode(self.ram.read_byte(self.registers['IP']))
+        current_instruction_size = current_instruction.get_instruction_size(current_subtype)
         if current_instruction_size > 1:
             arguments = [self.ram.read_byte(self.registers['IP'] + i) for i in range(1, current_instruction_size)]
-            inst = current_instruction(self, arguments)
-            self.log.log('cpu', '%s(%s)' % (current_instruction.__name__, ', '.join(map(aux.byte_to_str, arguments))))
+            inst = current_instruction(self, current_subtype, arguments)
+            self.log.log('cpu', '%s(%s)' % (inst, ', '.join(map(aux.byte_to_str, arguments))))
         else:
-            inst = current_instruction(self)
-            self.log.log('cpu', '%s' % current_instruction.__name__)
+            inst = current_instruction(self, current_subtype)
+            self.log.log('cpu', '%s' % inst)
         inst.do()
         self.registers['IP'] = inst.next_ip() % self.ram.size
 
@@ -219,18 +212,35 @@ class RAM(aux.Hardware):
         self.log.log('ram', 'Written word %s to %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
 
 
+class BIOS(aux.Hardware):
+
+    def __init__(self, contents):
+        aux.Hardware.__init__(self)
+        self.contents = contents
+
+
 def main():
     # config:
     ram_size = 0x10000
+    entry_point = 0x0400
+    try:
+        start_program = assembler.Assembler().load(entry_point, 'examples/hello.ald')
+    except assembler.UnknownInstructionError as e:
+        print e
+        return 1
+    bios = BIOS({
+        'IV': (0x0000, [0] * 2 * 256),
+        'start': (entry_point, start_program),
+    })
     clock_speed = 0.5
     host = 'localhost'
     base_port = 35000
     #
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
-        'cpu': CPU(bios.instruction_set, aux.Log()),
+        'cpu': CPU(entry_point, aux.Log()),
         'ram': RAM(ram_size),
-        'bios': bios.example_bios,
+        'bios': bios,
         'interrupt_queue': Queue.Queue(),
         'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + 17, aux.Log()),
     }, aux.Log())
