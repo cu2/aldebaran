@@ -121,9 +121,15 @@ class CPU(aux.Hardware):
             except Queue.Empty:
                 pass
             if interrupt_number:
-                self.log.log('cpu', 'interrupt: %s' % interrupt_number)
+                try:
+                    interrupt_number = int(interrupt_number)
+                except ValueError:
+                    self.log.log('cpu', 'illegal interrupt: %s' % interrupt_number)
+                    return
+                self.log.log('cpu', 'calling interrupt: %s' % aux.byte_to_str(interrupt_number))
+                self.call_int(interrupt_number)
                 return
-        self.log.log('cpu', 'IP=%s' % aux.word_to_str(self.registers['IP']))
+        self.mini_debugger()
         current_instruction = self.instruction_set[self.ram.read_byte(self.registers['IP'])]
         current_instruction_size = current_instruction.instruction_size
         if current_instruction_size > 1:
@@ -135,6 +141,14 @@ class CPU(aux.Hardware):
             self.log.log('cpu', '%s' % current_instruction.__name__)
         inst.do()
         self.registers['IP'] = inst.next_ip() % self.ram.size
+
+    def mini_debugger(self):
+        if not isinstance(self.log, aux.SilentLog):
+            self.log.log('cpu', 'IP=%s    RAM: %s    STACK: %s' % (
+                aux.word_to_str(self.registers['IP']),
+                ' '.join([aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(16)]),
+                ''.join([aux.byte_to_str(self.ram.mem[idx]) + ('<' if idx == self.registers['SP'] else ' ') for idx in xrange(self.ram.size - 16, self.ram.size)]),
+            ))
 
     def stack_push_byte(self, value):
         if self.registers['SP'] < 1:
@@ -154,7 +168,7 @@ class CPU(aux.Hardware):
     def stack_push_word(self, value):
         if self.registers['SP'] < 2:
             raise Exception('Stack overflow')
-        self.ram.write_word(self.registers['SP'], value)
+        self.ram.write_word(self.registers['SP'] - 1, value)
         self.log.log('cpu', 'pushed %s' % aux.word_to_str(value))
         self.registers['SP'] -= 2
 
@@ -162,9 +176,13 @@ class CPU(aux.Hardware):
         if self.registers['SP'] >= self.ram.size - 2:
             raise Exception('Stack underflow')
         self.registers['SP'] += 2
-        value = self.ram.read_word(self.registers['SP'])
+        value = self.ram.read_word(self.registers['SP'] - 1)
         self.log.log('cpu', 'popped %s' % aux.word_to_str(value))
         return value
+
+    def call_int(self, interrupt_number):
+        self.stack_push_word(self.registers['IP'])
+        self.registers['IP'] = self.ram.read_word(2 * interrupt_number) % self.ram.size
 
 
 class RAM(aux.Hardware):
@@ -173,6 +191,7 @@ class RAM(aux.Hardware):
         aux.Hardware.__init__(self, log)
         self.size = size
         self.mem = [0] * self.size
+        self.log.log('ram', '%s bytes initialized.' % self.size)
 
     def read_byte(self, pos):
         pos = pos % self.size
@@ -202,14 +221,6 @@ class RAM(aux.Hardware):
 
 def main():
     # config:
-    instruction_set = [
-        NOP,
-        HALT,
-        PRINT,
-        JUMP,
-        PUSH,
-        POP,
-    ]
     ram_size = 0x10000
     clock_speed = 0.5
     host = 'localhost'
@@ -217,7 +228,7 @@ def main():
     #
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
-        'cpu': CPU(instruction_set, aux.Log()),
+        'cpu': CPU(bios.instruction_set, aux.Log()),
         'ram': RAM(ram_size),
         'bios': bios.example_bios,
         'interrupt_queue': Queue.Queue(),

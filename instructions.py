@@ -69,3 +69,43 @@ class POP(Instruction):
         pos = aux.bytes_to_word(*self.arguments)
         content = self.cpu.stack_pop_word()
         self.cpu.ram.write_word(pos, content)
+
+
+class INT(Instruction):
+
+    instruction_size = 2
+
+    def do(self):
+        self.cpu.stack_push_word(self.ip)
+
+    def next_ip(self):
+        interrupt_number = self.arguments[0]
+        return self.cpu.ram.read_word(2 * interrupt_number)
+
+
+class IRET(Instruction):
+
+    instruction_size = 1
+
+    def next_ip(self):
+        return self.cpu.stack_pop_word()
+
+
+class CALL(Instruction):
+
+    instruction_size = 3
+
+    def do(self):
+        self.cpu.stack_push_word(self.ip + self.instruction_size)
+
+    def next_ip(self):
+        pos = aux.bytes_to_word(*self.arguments)
+        return pos
+
+
+class RET(Instruction):
+
+    instruction_size = 1
+
+    def next_ip(self):
+        return self.cpu.stack_pop_word()
