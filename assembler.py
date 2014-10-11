@@ -96,7 +96,7 @@ class Assembler(aux.Hardware):
 
 
 if __name__ == '__main__':
-    starting_ip = 0x0400
+    starting_ip = 0x0000
     filename = 'examples/hello.ald'
     assembler = Assembler(aux.Log())
     try:

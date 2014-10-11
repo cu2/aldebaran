@@ -190,14 +190,14 @@ class INT(Instruction):
 
 
     def do(self):
-        self.cpu.stack_push_word(self.ip)
+        self.cpu.stack_push_word(self.ip + self.real_instruction_size)  # IP of next instruction
 
     def next_ip(self):
         if self.subtype == 1:
             interrupt_number = 0  # default interrupt number
         else:
             interrupt_number = self.arguments[0]
-        return self.cpu.ram.read_word(2 * interrupt_number)
+        return self.cpu.ram.read_word(self.cpu.system_addresses['IV'] + 2 * interrupt_number)
 
 
 class IRET(Instruction):

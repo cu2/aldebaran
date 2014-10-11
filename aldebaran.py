@@ -88,20 +88,20 @@ class Clock(aux.Hardware):
 
 class CPU(aux.Hardware):
 
-    def __init__(self, entry_point, log=None):
+    def __init__(self, system_addresses, log=None):
         aux.Hardware.__init__(self, log)
+        self.system_addresses = system_addresses
         self.ram = None
         self.interrupt_queue = None
         self.registers = {
-            'IP': entry_point,
-            'SP': 0,
+            'IP': self.system_addresses['entry_point'],
+            'SP': self.system_addresses['SP'],
             'AX': 0,
         }
 
     def register_architecture(self, ram, interrupt_queue):
         self.ram = ram
         self.interrupt_queue = interrupt_queue
-        self.registers['SP'] = self.ram.size - 1
 
     def step(self):
         if not self.ram:
@@ -137,10 +137,12 @@ class CPU(aux.Hardware):
 
     def mini_debugger(self):
         if not isinstance(self.log, aux.SilentLog):
-            self.log.log('cpu', 'IP=%s    RAM: %s    STACK: %s' % (
+            ram_page = (self.registers['IP'] / 16) * 16
+            self.log.log('cpu', 'IP=%s    RAM[%s]: %s    STACK: %s' % (
                 aux.word_to_str(self.registers['IP']),
-                ' '.join([aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(16)]),
-                ''.join([aux.byte_to_str(self.ram.mem[idx]) + ('<' if idx == self.registers['SP'] else ' ') for idx in xrange(self.ram.size - 16, self.ram.size)]),
+                aux.word_to_str(ram_page),
+                ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(ram_page, ram_page + 16)]),
+                ''.join([aux.byte_to_str(self.ram.mem[idx]) + ('<' if idx == self.registers['SP'] else ' ') for idx in xrange(self.system_addresses['SP'] - 15, self.system_addresses['SP'] + 1)]),
             ))
 
     def stack_push_byte(self, value):
@@ -151,7 +153,7 @@ class CPU(aux.Hardware):
         self.registers['SP'] -= 1
 
     def stack_pop_byte(self):
-        if self.registers['SP'] >= self.ram.size - 1:
+        if self.registers['SP'] >= self.system_addresses['SP']:
             raise Exception('Stack underflow')
         self.registers['SP'] += 1
         value = self.ram.read_byte(self.registers['SP'])
@@ -166,7 +168,7 @@ class CPU(aux.Hardware):
         self.registers['SP'] -= 2
 
     def stack_pop_word(self):
-        if self.registers['SP'] >= self.ram.size - 2:
+        if self.registers['SP'] >= self.system_addresses['SP'] - 1:
             raise Exception('Stack underflow')
         self.registers['SP'] += 2
         value = self.ram.read_word(self.registers['SP'] - 1)
@@ -175,7 +177,7 @@ class CPU(aux.Hardware):
 
     def call_int(self, interrupt_number):
         self.stack_push_word(self.registers['IP'])
-        self.registers['IP'] = self.ram.read_word(2 * interrupt_number) % self.ram.size
+        self.registers['IP'] = self.ram.read_word(self.system_addresses['IV'] + 2 * interrupt_number) % self.ram.size
 
 
 class RAM(aux.Hardware):
@@ -222,15 +224,20 @@ class BIOS(aux.Hardware):
 def main():
     # config:
     ram_size = 0x10000
-    entry_point = 0x0400
+    system_addresses = {
+        'entry_point': 0x0000,
+        'SP': 0xFDFF,
+        'IV': 0xFE00,
+    }
+    start_program_filename = 'examples/hello.ald'
     try:
-        start_program = assembler.Assembler().load(entry_point, 'examples/hello.ald')
+        start_program = assembler.Assembler().load(system_addresses['entry_point'], start_program_filename)
     except assembler.UnknownInstructionError as e:
         print e
         return 1
     bios = BIOS({
-        'IV': (0x0000, [0] * 2 * 256),
-        'start': (entry_point, start_program),
+        'start': (system_addresses['entry_point'], start_program),
+        'IV': (system_addresses['IV'], [0x00, 0x00] * 256),
     })
     clock_speed = 0.5
     host = 'localhost'
@@ -238,7 +245,7 @@ def main():
     #
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
-        'cpu': CPU(entry_point, aux.Log()),
+        'cpu': CPU(system_addresses, aux.Log()),
         'ram': RAM(ram_size),
         'bios': bios,
         'interrupt_queue': Queue.Queue(),
