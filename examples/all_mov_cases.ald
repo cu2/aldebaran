@@ -1,0 +1,107 @@
+# All possible valid and invalid MOV/MOVB cases
+
+# This should not be run, only assembled
+# Invalid MOVs are commented out
+# TODO: create tests from/instead of this
+
+
+# MOV
+
+MOV_REG_REG:
+        MOV AX BX
+        #MOV AX BL
+        #MOV AL BX
+        MOV AL BL
+
+MOV_REG_[REG]:
+        MOV AX [BX]
+        #MOV AX [BL]
+        MOV AL [BX]
+        #MOV AL [BL]
+
+MOV_REG_VAL:
+        MOV AX 1234
+        #MOV AX 12
+        #MOV AL 1234
+        MOV AL 12
+
+MOV_REG_[VAL]:
+        MOV AX [1234]
+        #MOV AX [12]
+        MOV AL [1234]
+        #MOV AL [12]
+
+MOV_VAL_REG:
+        MOV 1234 AX
+        MOV 1234 AL
+        #MOV 12 AX
+        #MOV 12 AL
+
+MOV_VAL_[REG]:
+        MOV 1234 [AX]
+        #MOV 1234 [AL]
+        #MOV 12 [AX]
+        #MOV 12 [AL]
+
+MOV_VAL_VAL:
+        MOV 1234 5678
+        MOV 1234 56
+        #MOV 12 5678
+        #MOV 12 56
+
+MOV_VAL_[VAL]:
+        MOV 1234 [5678]
+        #MOV 1234 [56]
+        #MOV 12 [5678]
+        #MOV 12 [56]
+
+
+# MOVB
+
+MOVB_REG_REG:
+        #MOVB AX BX
+        #MOVB AX BL
+        #MOVB AL BX
+        MOVB AL BL
+
+MOVB_REG_[REG]:
+        #MOVB AX [BX]
+        #MOVB AX [BL]
+        MOVB AL [BX]
+        #MOVB AL [BL]
+
+MOVB_REG_VAL:
+        #MOVB AX 1234
+        #MOVB AX 12
+        #MOVB AL 1234
+        MOVB AL 12
+
+MOVB_REG_[VAL]:
+        #MOVB AX [1234]
+        #MOVB AX [12]
+        MOVB AL [1234]
+        #MOVB AL [12]
+
+MOVB_VAL_REG:
+        #MOVB 1234 AX
+        MOVB 1234 AL
+        #MOVB 12 AX
+        #MOVB 12 AL
+
+MOVB_VAL_[REG]:
+        MOVB 1234 [AX]
+        #MOVB 1234 [AL]
+        #MOVB 12 [AX]
+        #MOVB 12 [AL]
+
+MOVB_VAL_VAL:
+        #MOVB 1234 5678
+        MOVB 1234 56
+        #MOVB 12 5678
+        #MOVB 12 56
+
+MOVB_VAL_[VAL]:
+        MOVB 1234 [5678]
+        #MOVB 1234 [56]
+        #MOVB 12 [5678]
+        #MOVB 12 [56]

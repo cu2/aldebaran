@@ -51,7 +51,7 @@ def bytes_to_word(high, low):
 
 def word_to_bytes(word):
     if word > 65535:
-        raise errors.WordOutOfRangeError(word)
+        raise errors.WordOutOfRangeError(hex(word))
     return (
         word / 256,
         word % 256,
@@ -59,10 +59,14 @@ def word_to_bytes(word):
 
 
 def byte_to_str(byte):
+    if byte > 255:
+        raise errors.ByteOutOfRangeError(hex(byte))
     return hex(byte)[2:].zfill(2).upper()
 
 
 def word_to_str(word):
+    if word > 65535:
+        raise errors.WordOutOfRangeError(hex(word))
     return hex(word)[2:].zfill(4).upper()
 
 

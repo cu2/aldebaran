@@ -17,10 +17,10 @@ BYTE_REGISTERS = ['AL', 'AH', 'BL', 'BH']
 def get_register_code(register_name):
     try:
         return WORD_REGISTERS.index(register_name)
-    except IndexError:
+    except ValueError:
         try:
             return len(WORD_REGISTERS) + BYTE_REGISTERS.index(register_name)
-        except IndexError:
+        except ValueError:
             raise errors.InvalidRegisterCodeError(register_name)
 
 
@@ -263,18 +263,24 @@ class RET(Instruction):
         return self.cpu.stack_pop_word()
 
 
-class MOV(Instruction):
-
-    opcode = 0x0A
+class MOVInstruction(Instruction):
 
     def __repr__(self):
         if self.subtype == OPERAND_TYPE_REGISTER_DIRECT:
-            return '%s[reg/direct]' % self.__class__.__name__
+            return '%s[direct/reg]' % self.__class__.__name__
         elif self.subtype == OPERAND_TYPE_REGISTER_INDIRECT:
-            return '%s[reg/indirect]' % self.__class__.__name__
+            return '%s[indirect/reg]' % self.__class__.__name__
         elif self.subtype == OPERAND_TYPE_VALUE_DIRECT:
-            return '%s[value/direct]' % self.__class__.__name__
-        return '%s[value/indirect]' % self.__class__.__name__
+            return '%s[direct/value]' % self.__class__.__name__
+        return '%s[indirect/value]' % self.__class__.__name__
+
+    def do(self):
+        raise errors.InvalidInstructionError(self)
+
+
+class MOV(MOVInstruction):
+
+    opcode = 0x0A
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
@@ -283,9 +289,13 @@ class MOV(Instruction):
         elif arguments[0] in BYTE_REGISTERS:  # BR
             opcode_offset = 5
         else:  # WM/BM
+            if arguments[0].startswith('['):
+                raise errors.InvalidArgumentError(arguments[0])
+            if len(arguments[0]) == 2:
+                raise errors.InvalidArgumentError(arguments[0])
             if arguments[1] in WORD_REGISTERS:  # WM
                 opcode_offset = 2
-            elif arguments[1] in ['AL', 'AH']:  # BM
+            elif arguments[1] in BYTE_REGISTERS:  # BM
                 opcode_offset = 3
             elif arguments[1].startswith('['):  # WM (otherwise use MOVB)
                 opcode_offset = 2
@@ -296,40 +306,34 @@ class MOV(Instruction):
         real_instruction, real_instruction_subtype = get_instruction_by_opcode(cls.real_opcode() + 4 * opcode_offset)
         return real_instruction.assemble(ip, labels, arguments)
 
-    def do(self):
-        raise errors.InvalidInstructionError()
 
-
-class MOVB(Instruction):
+class MOVB(MOVInstruction):
 
     opcode = 0x0B
-
-    def __repr__(self):
-        if self.subtype == OPERAND_TYPE_REGISTER_DIRECT:
-            return '%s[reg/direct]' % self.__class__.__name__
-        elif self.subtype == OPERAND_TYPE_REGISTER_INDIRECT:
-            return '%s[reg/indirect]' % self.__class__.__name__
-        elif self.subtype == OPERAND_TYPE_VALUE_DIRECT:
-            return '%s[value/direct]' % self.__class__.__name__
-        return '%s[value/indirect]' % self.__class__.__name__
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
         if arguments[0] in WORD_REGISTERS:  # WR
-            raise errors.InvalidInstructionError()
+            raise errors.InvalidArgumentError(arguments[0])
         elif arguments[0] in BYTE_REGISTERS:  # BR
             opcode_offset = 4
-        elif arguments[1].startswith('['):  # BM (otherwise use MOV)
-            opcode_offset = 2
-        elif len(arguments[1]) == 4:  # WM
-            raise errors.InvalidInstructionError()
-        else:  # BM
-            opcode_offset = 2
+        else:  # WM/BM
+            if arguments[0].startswith('['):
+                raise errors.InvalidArgumentError(arguments[0])
+            if len(arguments[0]) == 2:
+                raise errors.InvalidArgumentError(arguments[0])
+            if arguments[1] in WORD_REGISTERS:  # WM
+                raise errors.InvalidArgumentError(arguments[1])
+            elif arguments[1] in BYTE_REGISTERS:  # BM
+                opcode_offset = 2
+            elif arguments[1].startswith('['):  # BM (otherwise use MOV)
+                opcode_offset = 2
+            elif len(arguments[1]) == 4:  # WM
+                raise errors.InvalidArgumentError(arguments[1])
+            else:  # BM
+                opcode_offset = 2
         real_instruction, real_instruction_subtype = get_instruction_by_opcode(cls.real_opcode() + 4 * opcode_offset)
         return real_instruction.assemble(ip, labels, arguments)
-
-    def do(self):
-        raise errors.InvalidInstructionError()
 
 
 class MOVWM(MOV):
@@ -343,15 +347,23 @@ class MOVWM(MOV):
         if arguments[1] in WORD_REGISTERS:
             subtype = OPERAND_TYPE_REGISTER_DIRECT
             arg_code = [get_register_code(arguments[1])]
+        elif arguments[1] in BYTE_REGISTERS:
+            raise errors.InvalidArgumentError(arguments[1])
         elif is_indirect_word_register(arguments[1]):
             subtype = OPERAND_TYPE_REGISTER_INDIRECT
             arg_code = [get_register_code(arguments[1][1:-1])]
+        elif is_indirect_byte_register(arguments[1]):
+            raise errors.InvalidArgumentError(arguments[1])
         elif arguments[1].startswith('['):
+            if len(arguments[1][1:-1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_INDIRECT
             arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
         else:
+            if len(arguments[1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_DIRECT
-            arg_code = [aux.str_to_int(arguments[1])]
+            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1])))
         return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + arg_code
 
     def do(self):
@@ -381,19 +393,25 @@ class MOVBM(MOV):
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
-        if arguments[1] in BYTE_REGISTERS:
+        if arguments[1] in WORD_REGISTERS:
+            raise errors.InvalidArgumentError(arguments[1])
+        elif arguments[1] in BYTE_REGISTERS:
             subtype = OPERAND_TYPE_REGISTER_DIRECT
-            arg_code = get_register_code(arguments[1])
-        elif is_indirect_byte_register(arguments[1]):
+            arg_code = [get_register_code(arguments[1])]
+        elif is_indirect_word_register(arguments[1]):
             subtype = OPERAND_TYPE_REGISTER_INDIRECT
-            arg_code = get_register_code(arguments[1])
+            arg_code = [get_register_code(arguments[1][1:-1])]
+        elif is_indirect_byte_register(arguments[1]):
+            raise errors.InvalidArgumentError(arguments[1])
         elif arguments[1].startswith('['):
+            if len(arguments[1][1:-1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_INDIRECT
-            arg_code = aux.str_to_int(arguments[1][1:-1])
+            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
         else:
             subtype = OPERAND_TYPE_VALUE_DIRECT
-            arg_code = aux.str_to_int(arguments[1])
-        return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + [arg_code]
+            arg_code = [aux.str_to_int(arguments[1])]
+        return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + arg_code
 
     def do(self):
         target = aux.bytes_to_word(self.operands[0], self.operands[1])
@@ -419,20 +437,24 @@ class MOVWR(MOV):
         if arguments[1] in WORD_REGISTERS:
             subtype = OPERAND_TYPE_REGISTER_DIRECT
             arg_code = [get_register_code(arguments[1])]
+        elif arguments[1] in BYTE_REGISTERS:
+            raise errors.InvalidArgumentError(arguments[1])
         elif is_indirect_word_register(arguments[1]):
             subtype = OPERAND_TYPE_REGISTER_INDIRECT
-            arg_code = [get_register_code(arguments[1])]
-        elif arguments[1] in BYTE_REGISTERS:
-            raise errors.InvalidInstructionError()
+            arg_code = [get_register_code(arguments[1][1:-1])]
         elif is_indirect_byte_register(arguments[1]):
-            raise errors.InvalidInstructionError()
+            raise errors.InvalidArgumentError(arguments[1])
         elif arguments[1].startswith('['):
+            if len(arguments[1][1:-1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_INDIRECT
             arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
         else:
+            if len(arguments[1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_DIRECT
-            arg_code = [aux.str_to_int(arguments[1])]
-        return [cls.real_opcode(subtype) + get_register_code(arguments[0])] + arg_code
+            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1])))
+        return [cls.real_opcode(subtype), get_register_code(arguments[0])] + arg_code
 
     def do(self):
         raise errors.InvalidInstructionError()
@@ -452,19 +474,27 @@ class MOVBR(MOV):
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
-        if arguments[1] in BYTE_REGISTERS:
+        if arguments[1] in WORD_REGISTERS:
+            raise errors.InvalidArgumentError(arguments[1])
+        elif arguments[1] in BYTE_REGISTERS:
             subtype = OPERAND_TYPE_REGISTER_DIRECT
-            arg_code = get_register_code(arguments[1])
-        elif is_indirect_byte_register(arguments[1]):
+            arg_code = [get_register_code(arguments[1])]
+        elif is_indirect_word_register(arguments[1]):
             subtype = OPERAND_TYPE_REGISTER_INDIRECT
-            arg_code = get_register_code(arguments[1])
+            arg_code = [get_register_code(arguments[1][1:-1])]
+        elif is_indirect_byte_register(arguments[1]):
+            raise errors.InvalidArgumentError(arguments[1])
         elif arguments[1].startswith('['):
+            if len(arguments[1][1:-1]) == 2:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_INDIRECT
-            arg_code = aux.str_to_int(arguments[1][1:-1])
+            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
         else:
+            if len(arguments[1]) == 4:
+                raise errors.InvalidArgumentError(arguments[1])
             subtype = OPERAND_TYPE_VALUE_DIRECT
-            arg_code = aux.str_to_int(arguments[1])
-        return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + [arg_code]
+            arg_code = [aux.str_to_int(arguments[1])]
+        return [cls.real_opcode(subtype), get_register_code(arguments[0])] + arg_code
 
     def do(self):
         raise errors.InvalidInstructionError()

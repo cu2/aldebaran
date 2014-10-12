@@ -6,6 +6,10 @@ class InvalidInstructionError(Exception):
     pass
 
 
+class InvalidArgumentError(Exception):
+    pass
+
+
 class InvalidRegisterCodeError(Exception):
     pass
 
@@ -27,4 +31,8 @@ class StackUnderflowError(Exception):
 
 
 class WordOutOfRangeError(Exception):
+    pass
+
+
+class ByteOutOfRangeError(Exception):
     pass

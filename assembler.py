@@ -5,6 +5,23 @@ import errors
 import instructions
 
 
+class MockCPU(aux.Hardware):
+
+    def __init__(self, log=None):
+        aux.Hardware.__init__(self, log)
+        self.system_addresses = {
+            'entry_point': 0,
+            'SP': 0,
+        }
+        self.ram = None
+        self.interrupt_queue = None
+        self.registers = {
+            'IP': self.system_addresses['entry_point'],
+            'SP': self.system_addresses['SP'],
+            'AX': 0,
+        }
+
+
 class Assembler(aux.Hardware):
 
     def __init__(self, log=None):
@@ -38,6 +55,7 @@ class Assembler(aux.Hardware):
         self.log.log('assembler', 'Assembling...')
         labels = {}
         program = []
+        mock_cpu = MockCPU()
 
         self.log.log('assembler', 'Collecting labels...')
         for linenum, label, code in self.get_lines():
@@ -61,6 +79,14 @@ class Assembler(aux.Hardware):
             if not instructions.is_instruction(instruction):
                 raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_code, ' '.join(arguments)))
             opcodes = instruction.assemble(ip, labels, arguments)  # opcode length is correct, labels are not necessarily
+            inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
+            self.log.log('assembler', '%s: %s %s # %s %s' % (
+                aux.word_to_str(ip),
+                ' '.join([aux.byte_to_str(opcode) for opcode in opcodes]),
+                ' ' * (30 - 3 * len(opcodes)),
+                inst_class(mock_cpu, inst_subtype),
+                ' '.join(arguments),
+            ))
             ip += len(opcodes)
 
         self.log.log('assembler', 'Generating machine code...')
@@ -73,11 +99,12 @@ class Assembler(aux.Hardware):
             arguments = tokens[1:]
             instruction = getattr(instructions, instruction_code)
             opcodes = instruction.assemble(ip, labels, arguments)  # finally even labels are correct
+            inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
             self.log.log('assembler', '%s: %s %s # %s %s' % (
                 aux.word_to_str(ip),
                 ' '.join([aux.byte_to_str(opcode) for opcode in opcodes]),
                 ' ' * (30 - 3 * len(opcodes)),
-                instructions.get_instruction_by_opcode(opcodes[0])[0].__name__,
+                inst_class(mock_cpu, inst_subtype),
                 ' '.join(arguments),
             ))
             program += opcodes
@@ -87,9 +114,12 @@ class Assembler(aux.Hardware):
         return program
 
 
-if __name__ == '__main__':
+def main(args):
     starting_ip = 0x0000
-    filename = 'examples/hello.ald'
+    if len(args):
+        filename = args[0]
+    else:
+        filename = 'examples/hello.ald'
     assembler = Assembler(aux.Log())
     assembler.load_file(filename)
     program = assembler.assemble(starting_ip)
@@ -110,3 +140,7 @@ if __name__ == '__main__':
             sys.stdout.write(' |')
         sys.stdout.write(' %s' % aux.byte_to_str(opcode))
     sys.stdout.write('\n')
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
