@@ -59,6 +59,7 @@ def is_instruction(inst):
 
 
 def get_instruction_by_opcode(opcode):
+    '''Return instruction class and subtype by opcode'''
     subtype = opcode % 4
     opcode2 = opcode / 4
     for key, value in globals().iteritems():
@@ -108,6 +109,7 @@ class Instruction(object):
 
 
 class OneAddressInstruction(Instruction):
+    '''Parent class of jump and call instructions'''
 
     instruction_size = 3
 
@@ -201,6 +203,7 @@ class POP(OneAddressInstruction):
 
 
 class INT(Instruction):
+    '''Call interrupt'''
 
     opcode = 0x06
     instruction_size = 2
@@ -231,6 +234,7 @@ class INT(Instruction):
 
 
 class IRET(Instruction):
+    '''Return from interrupt'''
 
     opcode = 0x07
     instruction_size = 1
@@ -240,6 +244,7 @@ class IRET(Instruction):
 
 
 class CALL(OneAddressInstruction):
+    '''Call subroutine'''
 
     opcode = 0x08
 
@@ -255,6 +260,7 @@ class CALL(OneAddressInstruction):
 
 
 class RET(Instruction):
+    '''Return from subroutine'''
 
     opcode = 0x09
     instruction_size = 1
@@ -264,6 +270,7 @@ class RET(Instruction):
 
 
 class MOVInstruction(Instruction):
+    '''Parent class of abstract MOV/MOVB instructions'''
 
     def __repr__(self):
         if self.subtype == OPERAND_TYPE_REGISTER_DIRECT:
@@ -279,44 +286,41 @@ class MOVInstruction(Instruction):
 
 
 class MOV(MOVInstruction):
-
-    opcode = 0x0A
+    '''Abstract MOV instruction'''
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
         if arguments[0] in WORD_REGISTERS:  # WR
-            opcode_offset = 4
+            real_instruction = MOVWR
         elif arguments[0] in BYTE_REGISTERS:  # BR
-            opcode_offset = 5
+            real_instruction = MOVBR
         else:  # WM/BM
             if arguments[0].startswith('['):
                 raise errors.InvalidArgumentError(arguments[0])
             if len(arguments[0]) == 2:
                 raise errors.InvalidArgumentError(arguments[0])
             if arguments[1] in WORD_REGISTERS:  # WM
-                opcode_offset = 2
+                real_instruction = MOVWM
             elif arguments[1] in BYTE_REGISTERS:  # BM
-                opcode_offset = 3
+                real_instruction = MOVBM
             elif arguments[1].startswith('['):  # WM (otherwise use MOVB)
-                opcode_offset = 2
+                real_instruction = MOVWM
             elif len(arguments[1]) == 4:  # WM
-                opcode_offset = 2
+                real_instruction = MOVWM
             else:  # BM
-                opcode_offset = 3
-        real_instruction, real_instruction_subtype = get_instruction_by_opcode(cls.real_opcode() + 4 * opcode_offset)
+                real_instruction = MOVBM
         return real_instruction.assemble(ip, labels, arguments)
 
 
 class MOVB(MOVInstruction):
-
-    opcode = 0x0B
+    '''Abstract MOVB instruction'''
 
     @classmethod
     def assemble(cls, ip, labels, arguments):
         if arguments[0] in WORD_REGISTERS:  # WR
             raise errors.InvalidArgumentError(arguments[0])
         elif arguments[0] in BYTE_REGISTERS:  # BR
-            opcode_offset = 4
+            real_instruction = MOVBR
         else:  # WM/BM
             if arguments[0].startswith('['):
                 raise errors.InvalidArgumentError(arguments[0])
@@ -325,21 +329,20 @@ class MOVB(MOVInstruction):
             if arguments[1] in WORD_REGISTERS:  # WM
                 raise errors.InvalidArgumentError(arguments[1])
             elif arguments[1] in BYTE_REGISTERS:  # BM
-                opcode_offset = 2
+                real_instruction = MOVBM
             elif arguments[1].startswith('['):  # BM (otherwise use MOV)
-                opcode_offset = 2
+                real_instruction = MOVBM
             elif len(arguments[1]) == 4:  # WM
                 raise errors.InvalidArgumentError(arguments[1])
             else:  # BM
-                opcode_offset = 2
-        real_instruction, real_instruction_subtype = get_instruction_by_opcode(cls.real_opcode() + 4 * opcode_offset)
+                real_instruction = MOVBM
         return real_instruction.assemble(ip, labels, arguments)
 
 
 class MOVWM(MOV):
     '''Move word into memory'''
 
-    opcode = 0x0C
+    opcode = 0x0A
     instruction_size = 5
 
     @classmethod
@@ -382,7 +385,7 @@ class MOVWM(MOV):
 class MOVBM(MOV):
     '''Move byte into memory'''
 
-    opcode = 0x0D
+    opcode = 0x0B
     instruction_size = 4
 
     @classmethod
@@ -429,7 +432,7 @@ class MOVBM(MOV):
 class MOVWR(MOV):
     '''Move word into register'''
 
-    opcode = 0x0E
+    opcode = 0x0C
     instruction_size = 4
 
     @classmethod
@@ -463,7 +466,7 @@ class MOVWR(MOV):
 class MOVBR(MOV):
     '''Move byte into register'''
 
-    opcode = 0x0F
+    opcode = 0x0D
     instruction_size = 3
 
     @classmethod
