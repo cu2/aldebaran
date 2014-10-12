@@ -72,3 +72,19 @@ def word_to_str(word):
 
 def str_to_int(str):
     return int(str, 16)
+
+
+def get_low(word):
+    return word % 256
+
+
+def get_high(word):
+    return word / 256
+
+
+def set_low(word, value):
+    return (word / 256) * 256 + value
+
+
+def set_high(word, value):
+    return 256 * value + (word % 256)

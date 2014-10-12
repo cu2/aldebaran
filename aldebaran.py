@@ -97,7 +97,8 @@ class CPU(aux.Hardware):
         self.registers = {
             'IP': self.system_addresses['entry_point'],
             'SP': self.system_addresses['SP'],
-            'AX': 0,
+            'AX': 0x0000,
+            'BX': 0x0000,
         }
 
     def register_architecture(self, ram, interrupt_queue):
@@ -139,12 +140,53 @@ class CPU(aux.Hardware):
     def mini_debugger(self):
         if not isinstance(self.log, aux.SilentLog):
             ram_page = (self.registers['IP'] / 16) * 16
-            self.log.log('cpu', 'IP=%s    RAM[%s]: %s    STACK: %s' % (
+            self.log.log('cpu', 'IP=%s  AX=%s  BX=%s    RAM[%s]: %s    STACK: %s' % (
                 aux.word_to_str(self.registers['IP']),
+                aux.word_to_str(self.registers['AX']),
+                aux.word_to_str(self.registers['BX']),
                 aux.word_to_str(ram_page),
                 ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(ram_page, ram_page + 16)]),
                 ''.join([aux.byte_to_str(self.ram.mem[idx]) + ('<' if idx == self.registers['SP'] else ' ') for idx in xrange(self.system_addresses['SP'] - 15, self.system_addresses['SP'] + 1)]),
             ))
+
+    def get_register(self, register_name):
+        value = None
+        hex_value = None
+        if register_name in self.registers:
+            value = self.registers[register_name]
+            hex_value = aux.word_to_str(value)
+        if register_name == 'AL':
+            value = aux.get_low(self.registers['AX'])
+        if register_name == 'AH':
+            value = aux.get_high(self.registers['AX'])
+        if register_name == 'BL':
+            value = aux.get_low(self.registers['BX'])
+        if register_name == 'BH':
+            value = aux.get_high(self.registers['BX'])
+        if value is not None:
+            if hex_value is None:
+                hex_value = aux.byte_to_str(value)
+            self.log.log('cpu', 'get_reg(%s) = %s' % (register_name, hex_value))
+        else:
+            raise errors.InvalidRegisterNameError(register_name)
+        return value
+
+    def set_register(self, register_name, value):
+        if register_name in self.registers:
+            self.registers[register_name] = value
+            self.log.log('cpu', 'set_reg(%s) = %s' % (register_name, aux.word_to_str(value)))
+            return
+        if register_name == 'AL':
+            self.registers['AX'] = aux.set_low(self.registers['AX'], value)
+        elif register_name == 'AH':
+            self.registers['AX'] = aux.set_high(self.registers['AX'], value)
+        elif register_name == 'BL':
+            self.registers['BX'] = aux.set_low(self.registers['BX'], value)
+        elif register_name == 'BH':
+            self.registers['BX'] = aux.set_high(self.registers['BX'], value)
+        else:
+            raise errors.InvalidRegisterNameError(register_name)
+        self.log.log('cpu', 'set_reg(%s) = %s' % (register_name, aux.byte_to_str(value)))
 
     def stack_push_byte(self, value):
         if self.registers['SP'] < 1:
@@ -222,7 +264,11 @@ class BIOS(aux.Hardware):
         self.contents = contents
 
 
-def main():
+def main(args):
+    if len(args):
+        start_program_filename = args[0]
+    else:
+        start_program_filename = 'examples/hello.ald'
     # config:
     ram_size = 0x10000
     system_addresses = {
@@ -231,7 +277,6 @@ def main():
         'default_interrupt_handler': 0xFDFF,
         'IV': 0xFE00,
     }
-    start_program_filename = 'examples/hello.ald'
     try:
         asm = assembler.Assembler()
         asm.load_file(start_program_filename)
@@ -251,7 +296,7 @@ def main():
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
         'cpu': CPU(system_addresses, aux.Log()),
-        'ram': RAM(ram_size, aux.Log()),
+        'ram': RAM(ram_size),
         'bios': bios,
         'interrupt_queue': Queue.Queue(),
         'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + 17, aux.Log()),
@@ -262,4 +307,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

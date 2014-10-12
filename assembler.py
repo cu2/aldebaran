@@ -29,12 +29,16 @@ class Assembler(aux.Hardware):
         self.source = ''
 
     def load_file(self, filename):
+        self.log.log('assembler', 'Loading file %s...' % filename)
         self.source = ''
         with open(filename, 'r') as f:
             self.source = f.read()
+        self.log.log('assembler', 'Loaded file %s.' % filename)
 
     def load_string(self, string):
+        self.log.log('assembler', 'Loading string...')
         self.source = string
+        self.log.log('assembler', 'Loaded string.')
 
     def get_lines(self):
         for linenum, line in enumerate(self.source.split('\n')):
@@ -51,6 +55,19 @@ class Assembler(aux.Hardware):
                 label, code = None, line
             yield linenum, label, code
 
+    def substitute_labels(self, orig_arguments, labels):
+        arguments = []
+        for arg in orig_arguments:
+            canonic_arg = arg.strip().upper()
+            if canonic_arg[0] == '[' and canonic_arg[-1] == ']':
+                if canonic_arg[1:-1] in labels:
+                    arg = '[%s]' % labels[canonic_arg[1:-1]]
+            else:
+                if canonic_arg in labels:
+                    arg = labels[canonic_arg]
+            arguments.append(arg)
+        return arguments
+
     def assemble(self, starting_ip):
         self.log.log('assembler', 'Assembling...')
         labels = {}
@@ -60,25 +77,25 @@ class Assembler(aux.Hardware):
         self.log.log('assembler', 'Collecting labels...')
         for linenum, label, code in self.get_lines():
             if label:
-                labels[label] = 0
+                labels[label] = '0000'
 
         self.log.log('assembler', 'Getting label addresses...')
         ip = starting_ip
         for linenum, label, code in self.get_lines():
             if label:
-                labels[label] = ip
+                labels[label] = aux.word_to_str(ip)
             if code == '':
                 continue
             self.log.log('assembler', code)
             tokens = code.split()
             instruction_code = tokens[0].upper()
-            arguments = tokens[1:]
+            arguments = self.substitute_labels(tokens[1:], labels)
             if not hasattr(instructions, instruction_code):
                 raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_code, ' '.join(arguments)))
             instruction = getattr(instructions, instruction_code)
             if not instructions.is_instruction(instruction):
                 raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_code, ' '.join(arguments)))
-            opcodes = instruction.assemble(ip, labels, arguments)  # opcode length is correct, labels are not necessarily
+            opcodes = instruction.assemble(ip, arguments)  # opcode length is correct, labels are not necessarily
             inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
             self.log.log('assembler', '%s: %s %s # %s %s' % (
                 aux.word_to_str(ip),
@@ -96,9 +113,9 @@ class Assembler(aux.Hardware):
                 continue
             tokens = code.split()
             instruction_code = tokens[0].upper()
-            arguments = tokens[1:]
+            arguments = self.substitute_labels(tokens[1:], labels)
             instruction = getattr(instructions, instruction_code)
-            opcodes = instruction.assemble(ip, labels, arguments)  # finally even labels are correct
+            opcodes = instruction.assemble(ip, arguments)  # finally even labels are correct
             inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
             self.log.log('assembler', '%s: %s %s # %s %s' % (
                 aux.word_to_str(ip),

@@ -1,7 +1,7 @@
 # This is a simple infinite hello world program
 
-SET_IV: # set IV[0] to label SOME_INTERRUPT
-        NOP  # not yet implemented
+SET_IV:
+        MOV FE00 SOME_INTERRUPT  # set IV[0] to label SOME_INTERRUPT
 
 START:
         PRINT H

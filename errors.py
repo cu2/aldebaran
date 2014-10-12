@@ -10,6 +10,14 @@ class InvalidArgumentError(Exception):
     pass
 
 
+class InvalidOperandError(Exception):
+    pass
+
+
+class InvalidRegisterNameError(Exception):
+    pass
+
+
 class InvalidRegisterCodeError(Exception):
     pass
 

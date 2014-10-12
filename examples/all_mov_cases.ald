@@ -1,6 +1,5 @@
 # All possible valid and invalid MOV/MOVB cases
 
-# This should not be run, only assembled
 # Invalid MOVs are commented out
 # TODO: create tests from/instead of this
 
@@ -105,3 +104,5 @@ MOVB_VAL_[VAL]:
         #MOVB 1234 [56]
         #MOVB 12 [5678]
         #MOVB 12 [56]
+
+        HALT
