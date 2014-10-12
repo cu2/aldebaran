@@ -5,6 +5,7 @@ import time
 
 import assembler
 import aux
+import errors
 import instructions
 import interrupt_handler
 
@@ -147,14 +148,14 @@ class CPU(aux.Hardware):
 
     def stack_push_byte(self, value):
         if self.registers['SP'] < 1:
-            raise Exception('Stack overflow')
+            raise errors.StackOverflowError()
         self.ram.write_byte(self.registers['SP'], value)
         self.log.log('cpu', 'pushed %s' % aux.byte_to_str(value))
         self.registers['SP'] -= 1
 
     def stack_pop_byte(self):
         if self.registers['SP'] >= self.system_addresses['SP']:
-            raise Exception('Stack underflow')
+            raise errors.StackUnderflowError()
         self.registers['SP'] += 1
         value = self.ram.read_byte(self.registers['SP'])
         self.log.log('cpu', 'popped %s' % aux.byte_to_str(value))
@@ -162,14 +163,14 @@ class CPU(aux.Hardware):
 
     def stack_push_word(self, value):
         if self.registers['SP'] < 2:
-            raise Exception('Stack overflow')
+            raise errors.StackOverflowError()
         self.ram.write_word(self.registers['SP'] - 1, value)
         self.log.log('cpu', 'pushed %s' % aux.word_to_str(value))
         self.registers['SP'] -= 2
 
     def stack_pop_word(self):
         if self.registers['SP'] >= self.system_addresses['SP'] - 1:
-            raise Exception('Stack underflow')
+            raise errors.StackUnderflowError()
         self.registers['SP'] += 2
         value = self.ram.read_word(self.registers['SP'] - 1)
         self.log.log('cpu', 'popped %s' % aux.word_to_str(value))
@@ -226,18 +227,22 @@ def main():
     ram_size = 0x10000
     system_addresses = {
         'entry_point': 0x0000,
-        'SP': 0xFDFF,
+        'SP': 0xFDFE,
+        'default_interrupt_handler': 0xFDFF,
         'IV': 0xFE00,
     }
     start_program_filename = 'examples/hello.ald'
     try:
-        start_program = assembler.Assembler().load(system_addresses['entry_point'], start_program_filename)
-    except assembler.UnknownInstructionError as e:
+        asm = assembler.Assembler()
+        asm.load_file(start_program_filename)
+        start_program = asm.assemble(system_addresses['entry_point'])
+    except errors.UnknownInstructionError as e:
         print e
         return 1
     bios = BIOS({
         'start': (system_addresses['entry_point'], start_program),
-        'IV': (system_addresses['IV'], [0x00, 0x00] * 256),
+        'default_interrupt_handler': (system_addresses['default_interrupt_handler'], [4 * instructions.IRET.opcode]),
+        'IV': (system_addresses['IV'], list(aux.word_to_bytes(system_addresses['default_interrupt_handler'])) * 256),
     })
     clock_speed = 0.5
     host = 'localhost'
@@ -246,7 +251,7 @@ def main():
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
         'cpu': CPU(system_addresses, aux.Log()),
-        'ram': RAM(ram_size),
+        'ram': RAM(ram_size, aux.Log()),
         'bios': bios,
         'interrupt_queue': Queue.Queue(),
         'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + 17, aux.Log()),

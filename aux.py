@@ -1,3 +1,6 @@
+import errors
+
+
 class Log(object):
 
     def __init__(self):
@@ -48,7 +51,7 @@ def bytes_to_word(high, low):
 
 def word_to_bytes(word):
     if word > 65535:
-        raise Exception('Word out of range: %s' % word)
+        raise errors.WordOutOfRangeError(word)
     return (
         word / 256,
         word % 256,

@@ -5,7 +5,7 @@ SET_IV: # set IV[0] to label SOME_INTERRUPT
 
 START:
         PRINT H
-        #INT
+        INT
         PRINT e
         PRINT l
         CALL SOME_SUB
