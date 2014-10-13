@@ -1,0 +1,22 @@
+# Chat between two terminals
+
+START:
+        MOV FE40 TERMINAL_HANDLER_1  # set IV[20] (ioport_in[0])
+        MOV FE42 TERMINAL_HANDLER_2  # set IV[21] (ioport_in[1])
+
+MAIN_LOOP:
+        HALT
+
+TERMINAL_HANDLER_1:
+        IN 00 INPUT_BUFFER_1
+        IRET
+
+TERMINAL_HANDLER_2:
+        IN 00 INPUT_BUFFER_2
+        IRET
+
+INPUT_BUFFER_1:
+        NOP  # should be 256 NOPS
+
+INPUT_BUFFER_2:
+        NOP  # should be 256 NOPS
