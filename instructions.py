@@ -556,3 +556,40 @@ class MOVBR(MOV):
         else:
             source = self.cpu.ram.read_byte(aux.bytes_to_word(self.operands[1], self.operands[2]))
         self.cpu.set_register(target_reg, source)
+
+
+class IN(Instruction):
+
+    opcode = 0x0E
+
+    def __repr__(self):
+        if self.subtype == ADDRESSING_MODE_REGISTER:
+            return '%s[reg]' % self.__class__.__name__
+        return '%s[abs]' % self.__class__.__name__
+
+    @classmethod
+    def get_instruction_size(cls, subtype):
+        if subtype == ADDRESSING_MODE_REGISTER:
+            return 3
+        return 4
+
+    @classmethod
+    def assemble(cls, ip, arguments):
+        if len(arguments) != 2:
+            raise errors.InvalidArgumentError('Number of arguments must be 2 for %s.' % cls.__name__)
+        ioport_number = aux.str_to_int(arguments[0])
+        pos = arguments[1]
+        subtype, operands = get_address(pos, ip)
+        return [cls.real_opcode(subtype), ioport_number] + operands
+
+    def do(self):
+        ioport_number = self.operands[0]
+        if self.subtype == ADDRESSING_MODE_REGISTER:
+            pos = self.cpu.get_register(get_register_code(self.operands[1]))
+        else:
+            pos = aux.bytes_to_word(self.operands[1], self.operands[2])
+        input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
+        for idx, value in enumerate(input_data):
+            self.cpu.ram.write_byte(pos + idx, ord(value))
+        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s' % (ioport_number, input_data))
+        self.cpu.device_handler.ioports[ioport_number].input_buffer = ''

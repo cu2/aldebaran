@@ -5,6 +5,7 @@ import time
 
 import assembler
 import aux
+import device_handler
 import errors
 import instructions
 import interrupt_handler
@@ -20,10 +21,12 @@ class Aldebaran(aux.Hardware):
         self.bios = components['bios']
         self.interrupt_queue = components['interrupt_queue']
         self.interrupt_handler = components['interrupt_handler']
+        self.device_handler = components['device_handler']
         # architecture:
-        self.cpu.register_architecture(self.ram, self.interrupt_queue)
+        self.cpu.register_architecture(self.ram, self.interrupt_queue, self.device_handler)
         self.clock.register_architecture(self.cpu)
         self.interrupt_handler.register_architecture(self.cpu, self.interrupt_queue)
+        self.device_handler.register_architecture(self.cpu, self.interrupt_queue, self.ram)
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
@@ -38,11 +41,17 @@ class Aldebaran(aux.Hardware):
         self.log.log('aldebaran', 'Started.')
         start_time = time.time()
         retval = self.load_bios()
-        if retval == 0:
-            retval = self.interrupt_handler.start()
-            if retval == 0:
-                retval = self.clock.run()
-                self.interrupt_handler.stop()
+        if retval != 0:
+            return retval
+        retval = self.interrupt_handler.start()
+        if retval != 0:
+            return retval
+        retval = self.device_handler.start()
+        if retval != 0:
+            return retval
+        retval = self.clock.run()
+        self.device_handler.stop()
+        self.interrupt_handler.stop()
         stop_time = time.time()
         self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
             self.clock.step_count,
@@ -89,9 +98,10 @@ class Clock(aux.Hardware):
 
 class CPU(aux.Hardware):
 
-    def __init__(self, system_addresses, log=None):
+    def __init__(self, system_addresses, system_interrupts, log=None):
         aux.Hardware.__init__(self, log)
         self.system_addresses = system_addresses
+        self.system_interrupts = system_interrupts
         self.ram = None
         self.interrupt_queue = None
         self.registers = {
@@ -101,9 +111,10 @@ class CPU(aux.Hardware):
             'BX': 0x0000,
         }
 
-    def register_architecture(self, ram, interrupt_queue):
+    def register_architecture(self, ram, interrupt_queue, device_handler):
         self.ram = ram
         self.interrupt_queue = interrupt_queue
+        self.device_handler = device_handler
 
     def step(self):
         if not self.ram:
@@ -265,18 +276,33 @@ class BIOS(aux.Hardware):
 
 
 def main(args):
+    # config:
+    number_of_ioports = 4
+    ram_size = 0x10000
+    IV_size = 256 * 2
+    device_registry_size = 16 * 4
+    system_interrupts = {
+        'device_registered': 30,
+        'device_unregistered': 31,
+        'ioport_in': [32 + ioport_number for ioport_number in xrange(number_of_ioports)],
+    }
+    system_addresses = {
+        'entry_point': 0x0000,
+        'SP': ram_size - IV_size - device_registry_size - 1 - 1,
+        'default_interrupt_handler': ram_size - IV_size - device_registry_size - 1,
+        'device_registry_address': ram_size - IV_size - device_registry_size,
+        'IV': ram_size - IV_size,
+    }
+    clock_speed = 0.5
+    host = 'localhost'
+    base_port = 35000
+    interrupt_handler_port = 0
+    device_handler_port = 1
+    # load bios
     if len(args):
         start_program_filename = args[0]
     else:
         start_program_filename = 'examples/hello.ald'
-    # config:
-    ram_size = 0x10000
-    system_addresses = {
-        'entry_point': 0x0000,
-        'SP': 0xFDFE,
-        'default_interrupt_handler': 0xFDFF,
-        'IV': 0xFE00,
-    }
     try:
         asm = assembler.Assembler()
         asm.load_file(start_program_filename)
@@ -289,17 +315,20 @@ def main(args):
         'default_interrupt_handler': (system_addresses['default_interrupt_handler'], [4 * instructions.IRET.opcode]),
         'IV': (system_addresses['IV'], list(aux.word_to_bytes(system_addresses['default_interrupt_handler'])) * 256),
     })
-    clock_speed = 0.5
-    host = 'localhost'
-    base_port = 35000
-    #
+    # start
     aldebaran = Aldebaran({
         'clock': Clock(clock_speed),
-        'cpu': CPU(system_addresses, aux.Log()),
+        'cpu': CPU(system_addresses, system_interrupts, aux.Log()),
         'ram': RAM(ram_size),
         'bios': bios,
         'interrupt_queue': Queue.Queue(),
-        'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + 17, aux.Log()),
+        'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + interrupt_handler_port, aux.Log()),
+        'device_handler': device_handler.DeviceHandler(
+            host, base_port + device_handler_port,
+            system_addresses['device_registry_address'],
+            [device_handler.IOPort(ioport_number, aux.Log()) for ioport_number in xrange(number_of_ioports)],
+            aux.Log(),
+        ),
     }, aux.Log())
     retval = aldebaran.run()
     print ''
