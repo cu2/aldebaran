@@ -268,9 +268,20 @@ class NOP(Instruction):
 
 
 class HALT(Instruction):
-    '''Halt'''
+    '''Halt CPU'''
 
     def do(self):
+        self.cpu.halt = True
+        self.cpu.log.log('cpu', 'Halted')
+        return self.ip
+
+
+class SHUTDOWN(Instruction):
+    '''Shut down Aldebaran'''
+
+    def do(self):
+        self.cpu.shutdown = True
+        self.cpu.log.log('cpu', 'Shut down')
         return self.ip
 
 

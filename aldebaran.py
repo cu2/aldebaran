@@ -82,10 +82,11 @@ class Clock(aux.Hardware):
             return 1
         self.log.log('clock', 'Started.')
         self.start_time = time.time()
+        shutdown = False
         try:
-            while True:
+            while not shutdown:
                 self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
-                self.cpu.step()
+                shutdown = self.cpu.step()
                 self.step_count += 1
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
@@ -120,6 +121,8 @@ class CPU(aux.Hardware):
             'DI': 0x0000,
         }
         self.operand_buffer_size = 16
+        self.halt = False
+        self.shutdown = False
 
     def register_architecture(self, ram, interrupt_queue, device_handler):
         self.ram = ram
@@ -143,8 +146,11 @@ class CPU(aux.Hardware):
                     self.log.log('cpu', 'illegal interrupt: %s' % interrupt_number)
                     return
                 self.log.log('cpu', 'calling interrupt: %s' % aux.byte_to_str(interrupt_number))
+                self.halt = False
                 self.call_int(interrupt_number)
                 return
+        if self.halt:
+            return
         self.mini_debugger()
         inst_opcode = self.ram.read_byte(self.registers['IP'])
         try:
@@ -157,6 +163,7 @@ class CPU(aux.Hardware):
         next_ip = current_instruction.run()
         self.registers['IP'] = next_ip % self.ram.size
         self.log.log('', '')
+        return self.shutdown
 
     def mini_debugger(self):
         if not isinstance(self.log, aux.SilentLog):

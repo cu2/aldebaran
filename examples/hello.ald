@@ -1,14 +1,13 @@
-# This is a simple infinite hello world program
+# This is a simple hello world program
 
 # MAIN
 
-START:
         MOV CX 00
 LOOP:
         PRINTCHAR [TEXT+CX]B
         ADD CX CX 01
         JLT CX [TExt_LENGTH]B LOOP
-        JUMP START
+        SHUTDOWN
 
 # DATA
 
