@@ -1,33 +1,21 @@
 # This is a simple infinite hello world program
 
-SET_IV:
-        MOV FE00 SOME_INTERRUPT  # set IV[0] to label SOME_INTERRUPT
+# MAIN
 
 START:
-        PRINT H
-        INT
-        PRINT e
-        PRINT l
-        CALL SOME_SUB
-        PRINT l
-        PRINT o
-        PRINT
-        PRINT W
-        PRINT o
-        PRINT r
-        PRINT l
-        PRINT d
-        PRINT !
+        MOV CX 00
+LOOP:
+        PRINTCHAR [TEXT+CX]B
+        ADD CX CX 01
+        JLT CX [TExt_LENGTH]B LOOP
         JUMP START
 
-SOME_INTERRUPT:
-        PRINT I
-        PRINT N
-        PRINT T
-        IRET
+# DATA
 
-SOME_SUB:
-        PRINT S
-        PRINT U
-        PRINT B
-        RET
+TEXT:
+        DAT 'Hello'
+        DAT 20  # space
+        DAT 'world'
+
+TEXT_LENGTH:
+        DAT 0B

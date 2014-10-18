@@ -22,12 +22,15 @@ class Log(object):
             return '\033[0m'
 
     def log(self, part, msg):
-        print '%s[%s] %s%s' % (
-            self.part_colors.get(part, ''),
-            part,
-            msg,
-            self.col(),
-        )
+        if part:
+            print '%s[%s] %s%s' % (
+                self.part_colors.get(part, ''),
+                part,
+                msg,
+                self.col(),
+            )
+        else:
+            print msg
 
 
 class SilentLog(object):
@@ -46,28 +49,36 @@ class Hardware(object):
 
 
 def bytes_to_word(high, low):
-    return 256 * high + low
+    return (high << 8) + low
 
 
 def word_to_bytes(word):
     if word > 65535:
         raise errors.WordOutOfRangeError(hex(word))
     return (
-        word / 256,
-        word % 256,
+        word >> 8,
+        word & 0x00FF,
     )
 
 
-def byte_to_str(byte):
-    if byte > 255:
+def byte_to_str(byte, signed=False):
+    if signed:
+        if byte < -128 or byte > 127:
+            raise errors.ByteOutOfRangeError(hex(byte))
+        return '%02X' % (byte & 0xFF)
+    if byte < 0 or byte > 255:
         raise errors.ByteOutOfRangeError(hex(byte))
-    return hex(byte)[2:].zfill(2).upper()
+    return '%02X' % byte
 
 
-def word_to_str(word):
-    if word > 65535:
+def word_to_str(word, signed=False):
+    if signed:
+        if word < -32768 or word > 32767:
+            raise errors.WordOutOfRangeError(hex(word))
+        return '%04X' % (word & 0xFFFF)
+    if word < 0 or word > 65535:
         raise errors.WordOutOfRangeError(hex(word))
-    return hex(word)[2:].zfill(4).upper()
+    return '%04X' % word
 
 
 def str_to_int(str):
@@ -75,16 +86,16 @@ def str_to_int(str):
 
 
 def get_low(word):
-    return word % 256
+    return word & 0x00FF
 
 
 def get_high(word):
-    return word / 256
+    return word >> 8
 
 
 def set_low(word, value):
-    return (word / 256) * 256 + value
+    return (word & 0xFF00) + value
 
 
 def set_high(word, value):
-    return 256 * value + (word % 256)
+    return (word & 0x00FF) + (value << 8)

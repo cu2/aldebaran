@@ -1,0 +1,38 @@
+# Generic function call with parameters, local variables and return value
+# All caller-callee communication and local vars go on the stack
+
+
+MAIN:
+        MOV BP SP  # bottom frame pointer for debugging
+
+        DEC SP 0002  # place for retval
+        PUSH PARAM1
+        PUSH PARAM2
+        CALL SUB
+        INC SP 0004  # discards params
+        POP [RETVAL]
+
+        HALT
+
+
+SUB:
+        # sub prologue:
+        PUSH BP
+        MOV BP SP
+        PUSH AX  # save regs
+        DEC SP 0006  # allocate local vars
+
+        # sub main:
+        # [BP+...] params and retval
+        # [SP+...] local vars
+
+        # sub epilogue:
+        INC SP 0006  # discard local vars
+        POP AX  # restore regs
+        POP BP
+        RET
+
+
+PARAM1: DAT ABCD
+PARAM2: DAT 1234
+RETVAL: DAT 0000

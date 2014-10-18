@@ -44,3 +44,11 @@ class WordOutOfRangeError(Exception):
 
 class ByteOutOfRangeError(Exception):
     pass
+
+
+class InvalidWriteOperationError(Exception):
+    pass
+
+
+class InsufficientOperandBufferError(Exception):
+    pass

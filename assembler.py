@@ -1,3 +1,4 @@
+import ast
 import sys
 
 import aux
@@ -24,8 +25,9 @@ class MockCPU(aux.Hardware):
 
 class Assembler(aux.Hardware):
 
-    def __init__(self, log=None):
+    def __init__(self, inst_dict, log=None):
         aux.Hardware.__init__(self, log)
+        self.inst_dict = inst_dict
         self.source = ''
 
     def load_file(self, filename):
@@ -55,20 +57,27 @@ class Assembler(aux.Hardware):
                 label, code = None, line
             yield linenum, label, code
 
-    def substitute_labels(self, orig_arguments, labels):
+    def substitute_labels(self, orig_arguments, labels):  # TODO: don't substitute in string literals
         arguments = []
+        sorted_labels = sorted([key for key in labels], key=lambda x: (-len(x), x))  # to avoid substr substitution
         for arg in orig_arguments:
-            canonic_arg = arg.strip().upper()
-            if canonic_arg[0] == '[' and canonic_arg[-1] == ']':
-                if canonic_arg[1:-1] in labels:
-                    arg = '[%s]' % labels[canonic_arg[1:-1]]
-            else:
-                if canonic_arg in labels:
-                    arg = labels[canonic_arg]
-            arguments.append(arg)
+            arg = arg.strip()
+            if arg[0] == "'" or arg[0] == '"':
+                arguments.append(arg)
+                continue
+            canonic_arg = arg.upper()
+            for label_name in sorted_labels:
+                if label_name in canonic_arg:
+                    canonic_arg = canonic_arg.replace(label_name, labels[label_name])
+            arguments.append(canonic_arg)
         return arguments
 
+    def tokenize(self, code):  # TODO: don't break on spaces in string literals
+        return code.split()
+
     def assemble(self, starting_ip):
+        # TODO: refactor to less copy paste
+        # TODO: add macros: CONST
         self.log.log('assembler', 'Assembling...')
         labels = {}
         program = []
@@ -87,21 +96,30 @@ class Assembler(aux.Hardware):
             if code == '':
                 continue
             self.log.log('assembler', code)
-            tokens = code.split()
-            instruction_code = tokens[0].upper()
+            tokens = self.tokenize(code)
+            instruction_name = tokens[0].upper()
             arguments = self.substitute_labels(tokens[1:], labels)
-            if not hasattr(instructions, instruction_code):
-                raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_code, ' '.join(arguments)))
-            instruction = getattr(instructions, instruction_code)
-            if not instructions.is_instruction(instruction):
-                raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_code, ' '.join(arguments)))
-            opcodes = instruction.assemble(ip, arguments)  # opcode length is correct, labels are not necessarily
-            inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
+            if instruction_name == 'DAT':
+                for arg in arguments:
+                    if arg[0] == "'" or arg[0] == '"':
+                        real_arg = ast.literal_eval(arg)
+                        ip += len(real_arg)
+                    elif len(arg) == 2:
+                        ip += 1
+                    else:
+                        ip += 2
+                continue
+            if instruction_name not in self.inst_dict:
+                raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_name, ' '.join(arguments)))
+            instruction_opcode = self.inst_dict[instruction_name]
+            opcodes = [instruction_opcode]
+            for arg in arguments:
+                opcodes += instructions.encode_argument(arg)  # labels are not okay, but len(opcodes) is
             self.log.log('assembler', '%s: %s %s # %s %s' % (
                 aux.word_to_str(ip),
                 ' '.join([aux.byte_to_str(opcode) for opcode in opcodes]),
                 ' ' * (30 - 3 * len(opcodes)),
-                inst_class(mock_cpu, inst_subtype),
+                instruction_name,
                 ' '.join(arguments),
             ))
             ip += len(opcodes)
@@ -111,17 +129,32 @@ class Assembler(aux.Hardware):
         for linenum, label, code in self.get_lines():
             if code == '':
                 continue
-            tokens = code.split()
-            instruction_code = tokens[0].upper()
+            tokens = self.tokenize(code)
+            instruction_name = tokens[0].upper()
             arguments = self.substitute_labels(tokens[1:], labels)
-            instruction = getattr(instructions, instruction_code)
-            opcodes = instruction.assemble(ip, arguments)  # finally even labels are correct
-            inst_class, inst_subtype = instructions.get_instruction_by_opcode(opcodes[0])
+            if instruction_name == 'DAT':
+                for arg in arguments:
+                    if arg[0] == "'" or arg[0] == '"':
+                        real_arg = ast.literal_eval(arg)
+                        for char in real_arg:
+                            program.append(ord(char))
+                        ip += len(real_arg)
+                    elif len(arg) == 2:
+                        program.append(aux.str_to_int(arg))
+                        ip += 1
+                    else:
+                        program += list(aux.word_to_bytes(aux.str_to_int(arg)))
+                        ip += 2
+                continue
+            instruction_opcode = self.inst_dict[instruction_name]
+            opcodes = [instruction_opcode]
+            for arg in arguments:
+                opcodes += instructions.encode_argument(arg)  # finally even labels are correct
             self.log.log('assembler', '%s: %s %s # %s %s' % (
                 aux.word_to_str(ip),
                 ' '.join([aux.byte_to_str(opcode) for opcode in opcodes]),
                 ' ' * (30 - 3 * len(opcodes)),
-                inst_class(mock_cpu, inst_subtype),
+                instruction_name,
                 ' '.join(arguments),
             ))
             program += opcodes
@@ -137,7 +170,8 @@ def main(args):
         filename = args[0]
     else:
         filename = 'examples/hello.ald'
-    assembler = Assembler(aux.Log())
+    inst_list, inst_dict = instructions.get_instruction_set()
+    assembler = Assembler(inst_dict, aux.Log())
     assembler.load_file(filename)
     program = assembler.assemble(starting_ip)
     sys.stdout.write('\n')

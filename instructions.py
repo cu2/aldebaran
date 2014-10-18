@@ -2,19 +2,22 @@ import aux
 import errors
 
 
-ADDRESSING_MODE_REGISTER = 0  # e.g. AX
-ADDRESSING_MODE_ABSOLUTE = 1  # e.g. 0000
+OPLEN_BYTE = 0
+OPLEN_WORD = 1
 
-OPERAND_TYPE_DIRECT_REGISTER = 0
-OPERAND_TYPE_INDIRECT_REGISTER = 1
-OPERAND_TYPE_DIRECT_VALUE = 2
-OPERAND_TYPE_INDIRECT_VALUE = 3
+OPTYPE_IMMEDIATE = 0        # dd, dddd      e.g. labels, interrupts, IO
+OPTYPE_REGISTER = 1         # AX            e.g. temporary variables
+OPTYPE_MEM_WORD = 2         # [dddd]        e.g. global variables
+OPTYPE_MEM_REG_BYTE = 3     # [AX+dd]       e.g. params (BP+), local variables (SP+), structs with address in reg
+OPTYPE_MEM_WORD_REG = 4     # [dddd+AX]     e.g. arrays (address = global variable)
+OPTYPE_MEM_WORD_BYTE = 5    # [dddd+dd]     e.g. structs (address = global variable)
 
-WORD_REGISTERS = ['AX', 'BX']
-BYTE_REGISTERS = ['AL', 'AH', 'BL', 'BH']
+WORD_REGISTERS = ['AX', 'BX', 'CX', 'DX', 'BP', 'SP', 'SI', 'DI']
+BYTE_REGISTERS = ['AL', 'AH', 'BL', 'BH', 'CL', 'CH', 'DL', 'DH']
 
 
 def get_register_code(register_name):
+    '''Return register code by name'''
     try:
         return WORD_REGISTERS.index(register_name)
     except ValueError:
@@ -25,6 +28,7 @@ def get_register_code(register_name):
 
 
 def get_register_name_by_code(register_code):
+    '''Return register name by code'''
     if register_code < len(WORD_REGISTERS):
         return WORD_REGISTERS[register_code]
     if register_code - len(WORD_REGISTERS) < len(BYTE_REGISTERS):
@@ -32,562 +36,484 @@ def get_register_name_by_code(register_code):
     raise errors.InvalidRegisterCodeError(register_code)
 
 
-def is_indirect_word_register(register_name):
-    return (len(register_name) >= 3 and register_name[0] == '[' and register_name[-1] == ']' and register_name[1:-1] in WORD_REGISTERS)
-
-
-def is_indirect_byte_register(register_name):
-    return (len(register_name) >= 3 and register_name[0] == '[' and register_name[-1] == ']' and register_name[1:-1] in BYTE_REGISTERS)
-
-
-def get_address(pos, ip):
-    '''Return addressing mode and address operand from address argument'''
-    if pos in WORD_REGISTERS:
-        return (ADDRESSING_MODE_REGISTER, [get_register_code(pos)])
-    if pos in BYTE_REGISTERS:
-        raise errors.InvalidAddressError(pos)
-    if pos.startswith('+'):
-        pos1, pos2 = aux.word_to_bytes(ip + aux.str_to_int(pos[1:]))
-        return (ADDRESSING_MODE_ABSOLUTE, [pos1, pos2])
-    if pos.startswith('-'):
-        pos1, pos2 = aux.word_to_bytes(ip - aux.str_to_int(pos[1:]))
-        return (ADDRESSING_MODE_ABSOLUTE, [pos1, pos2])
-    pos1, pos2 = aux.word_to_bytes(aux.str_to_int(pos))
-    return (ADDRESSING_MODE_ABSOLUTE, [pos1, pos2])
-
-
 def is_instruction(inst):
+    '''Check if inst a subclass of Instruction, but not Instruction itself'''
     try:
-        return issubclass(inst, Instruction)
+        return issubclass(inst, Instruction) and inst != Instruction
     except TypeError:
         return False
 
 
-def get_instruction_by_opcode(opcode):
-    '''Return instruction class and subtype by opcode'''
-    subtype = opcode % 4
-    opcode2 = opcode / 4
+def get_instruction_set():
+    '''Return list and dict of all valid instructions'''
+    # get automatic opcodes (for development):
+    inst_list = []
     for key, value in globals().iteritems():
         if is_instruction(value):
-            try:
-                if value.opcode == opcode2:
-                    return value, subtype
-            except AttributeError:
-                pass
-    raise errors.UnknownOpcodeError(opcode)
+            inst_list.append(key)
+    inst_list.sort()
+    # fix opcodes (once it's fixed):
+    # inst_list = [
+    # ]
+    inst_dict = {}
+    for opcode, name in enumerate(inst_list):
+        inst_dict[name] = opcode
+    return inst_list, inst_dict
+
+
+def encode_argument(arg):
+    '''Return opcode of argument'''
+    # OPTYPE_REGISTER
+    if arg in WORD_REGISTERS:
+        return [
+            (OPLEN_WORD << 7) + (OPTYPE_REGISTER << 4) + get_register_code(arg),
+        ]
+    if arg in BYTE_REGISTERS:
+        return [
+            (OPLEN_BYTE << 7) + (OPTYPE_REGISTER << 4) + get_register_code(arg),
+        ]
+    # OPTYPE_IMMEDIATE
+    if arg[0] != '[':
+        if len(arg) == 4:
+            return [
+                (OPLEN_WORD << 7) + (OPTYPE_IMMEDIATE << 4),
+            ] + list(aux.word_to_bytes(aux.str_to_int(arg)))
+        return [
+            (OPLEN_BYTE << 7) + (OPTYPE_IMMEDIATE << 4),
+            aux.str_to_int(arg),
+        ]
+    # OPTYPE_MEM_*
+    if arg[-1] == ']':
+        oplen = OPLEN_WORD
+        arg = arg[1:-1]
+    else:
+        if arg[-1] == 'B':
+            oplen = OPLEN_BYTE
+        else:
+            oplen = OPLEN_WORD
+        arg = arg[1:-2]
+    # OPTYPE_MEM_WORD
+    if '+' not in arg:
+        return [
+            (oplen << 7) + (OPTYPE_MEM_WORD << 4),
+        ] + list(aux.word_to_bytes(aux.str_to_int(arg)))
+    arg1, arg2 = arg.split('+')
+    # OPTYPE_MEM_REG_BYTE
+    if arg1 in WORD_REGISTERS:
+        return [
+            (oplen << 7) + (OPTYPE_MEM_REG_BYTE << 4) + get_register_code(arg1),
+            aux.str_to_int(arg2),
+        ]
+    # OPTYPE_MEM_WORD_REG
+    if arg2 in WORD_REGISTERS:
+        return [
+            (oplen << 7) + (OPTYPE_MEM_WORD_REG << 4) + get_register_code(arg2),
+        ] + list(aux.word_to_bytes(aux.str_to_int(arg1)))
+    # OPTYPE_MEM_WORD_BYTE
+    return [
+        (oplen << 7) + (OPTYPE_MEM_WORD_BYTE << 4),
+    ] + list(aux.word_to_bytes(aux.str_to_int(arg1))) + [
+        aux.str_to_int(arg2),
+    ]
 
 
 class Instruction(object):
 
-    instruction_size = 1
+    operand_count = 0
 
-    def __init__(self, cpu, subtype, operands=None):
+    def __init__(self, cpu, operand_buffer):
         self.cpu = cpu
-        self.subtype = subtype
-        self.operands = operands
+        self.operands, self.opcode_length = self._parse_operand_buffer(operand_buffer)
         self.ip = self.cpu.registers['IP']
 
     def __repr__(self):
         return self.__class__.__name__
 
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        return cls.instruction_size
+    def _parse_operand_buffer(self, operand_buffer):
+        '''Return operands as (oplen, optype, oprest) tuples from operand_buffer'''
+        operands = []
+        operand_buffer_idx = 0
+        try:
+            while True:
+                if len(operands) >= self.operand_count:
+                    break
+                opbyte = operand_buffer[operand_buffer_idx]
+                operand_buffer_idx += 1
+                oplen = opbyte >> 7
+                optype = (opbyte & 0x7F) >> 4
+                opreg = opbyte & 0x0F
+                if optype == OPTYPE_IMMEDIATE:
+                    if oplen == OPLEN_WORD:
+                        operand = (oplen, optype, [
+                            aux.bytes_to_word(operand_buffer[operand_buffer_idx+0], operand_buffer[operand_buffer_idx+1])
+                        ])
+                        operand_buffer_idx += 2
+                    else:
+                        operand = (oplen, optype, [
+                            operand_buffer[operand_buffer_idx+0]
+                        ])
+                        operand_buffer_idx += 1
+                elif optype == OPTYPE_REGISTER:
+                    operand = (oplen, optype, [
+                        opreg
+                    ])
+                elif optype == OPTYPE_MEM_WORD:
+                    operand = (oplen, optype, [
+                        aux.bytes_to_word(operand_buffer[operand_buffer_idx+0], operand_buffer[operand_buffer_idx+1])
+                    ])
+                    operand_buffer_idx += 2
+                elif optype == OPTYPE_MEM_REG_BYTE:
+                    operand = (oplen, optype, [
+                        opreg,
+                        operand_buffer[operand_buffer_idx+0]
+                    ])
+                    operand_buffer_idx += 1
+                elif optype == OPTYPE_MEM_WORD_REG:
+                    operand = (oplen, optype, [
+                        aux.bytes_to_word(operand_buffer[operand_buffer_idx+0], operand_buffer[operand_buffer_idx+1]),
+                        opreg
+                    ])
+                    operand_buffer_idx += 2
+                elif optype == OPTYPE_MEM_WORD_BYTE:
+                    operand = (oplen, optype, [
+                        aux.bytes_to_word(operand_buffer[operand_buffer_idx+0], operand_buffer[operand_buffer_idx+1]),
+                        operand_buffer[operand_buffer_idx+2]
+                    ])
+                    operand_buffer_idx += 3
+                else:
+                    raise errors.InvalidOperandError(self, operand_buffer, operand_buffer_idx)
+                operands.append(operand)
+        except IndexError:
+            raise errors.InsufficientOperandBufferError(self, operand_buffer)
+        return operands, 1 + operand_buffer_idx
 
-    @classmethod
-    def real_opcode(cls, subtype=0):
-        return 4 * cls.opcode + subtype
+    def get_operand(self, opnum):
+        '''Return value of operand'''
+        oplen, optype, oprest = self.operands[opnum]
+        if optype == OPTYPE_IMMEDIATE:
+            return oprest[0]
+        if optype == OPTYPE_REGISTER:
+            return self.cpu.get_register(get_register_name_by_code(oprest[0]))
+        if optype == OPTYPE_MEM_WORD:
+            if oplen == OPLEN_WORD:
+                return self.cpu.ram.read_word(oprest[0])
+            else:
+                return self.cpu.ram.read_byte(oprest[0])
+        if optype == OPTYPE_MEM_REG_BYTE:
+            if oplen == OPLEN_WORD:
+                return self.cpu.ram.read_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1])
+            else:
+                return self.cpu.ram.read_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1])
+        if optype == OPTYPE_MEM_WORD_REG:
+            if oplen == OPLEN_WORD:
+                return self.cpu.ram.read_word(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])))
+            else:
+                return self.cpu.ram.read_byte(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])))
+        if optype == OPTYPE_MEM_WORD_BYTE:
+            if oplen == OPLEN_WORD:
+                return self.cpu.ram.read_word(oprest[0] + oprest[1])
+            else:
+                return self.cpu.ram.read_byte(oprest[0] + oprest[1])
+        raise errors.InvalidOperandError(self, self.operands[opnum])
 
-    @classmethod
-    def assemble(cls, ip, arguments):
-        return [cls.real_opcode()]
+    def set_operand(self, opnum, value):
+        '''Set value of operand'''
+        oplen, optype, oprest = self.operands[opnum]
+        if optype == OPTYPE_IMMEDIATE:
+            raise errors.InvalidWriteOperationError(self, self.operands[opnum])
+        elif optype == OPTYPE_REGISTER:
+            self.cpu.set_register(get_register_name_by_code(oprest[0]), value)
+        elif optype == OPTYPE_MEM_WORD:
+            if oplen == OPLEN_WORD:
+                self.cpu.ram.write_word(oprest[0], value)
+            else:
+                self.cpu.ram.write_byte(oprest[0], value)
+        elif optype == OPTYPE_MEM_REG_BYTE:
+            if oplen == OPLEN_WORD:
+                self.cpu.ram.write_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1], value)
+            else:
+                self.cpu.ram.write_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1], value)
+        elif optype == OPTYPE_MEM_WORD_REG:
+            if oplen == OPLEN_WORD:
+                self.cpu.ram.write_word(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])), value)
+            else:
+                self.cpu.ram.write_byte(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])), value)
+        elif optype == OPTYPE_MEM_WORD_BYTE:
+            if oplen == OPLEN_WORD:
+                self.cpu.ram.write_word(oprest[0] + oprest[1], value)
+            else:
+                self.cpu.ram.write_byte(oprest[0] + oprest[1], value)
+        else:
+            raise errors.InvalidOperandError(self, self.operands[opnum])
 
-    @property
-    def real_instruction_size(self):
-        return self.__class__.get_instruction_size(self.subtype)
+    def run(self):
+        '''Run instruction'''
+        next_ip = self.do()
+        if next_ip is None:
+            return self.ip + self.opcode_length
+        return next_ip
 
     def do(self):
+        '''
+        This method should be implemented in all subclasses, and do what the specific instruction does.
+
+        If there's a jump, return the IP. Otherwise return None.
+        '''
         pass
-
-    def next_ip(self):
-        return self.ip + self.real_instruction_size
-
-
-class OneAddressInstruction(Instruction):
-    '''Parent class of jump and call instructions'''
-
-    def __repr__(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            return '%s[reg]' % self.__class__.__name__
-        return '%s[abs]' % self.__class__.__name__
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype == ADDRESSING_MODE_REGISTER:
-            return 2
-        return 3
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        pos = arguments[0]
-        subtype, operands = get_address(pos, ip)
-        return [cls.real_opcode(subtype)] + operands
 
 
 class NOP(Instruction):
-
-    opcode = 0x00
+    '''No operation'''
+    pass
 
 
 class HALT(Instruction):
+    '''Halt'''
 
-    opcode = 0x01
-
-    def next_ip(self):
+    def do(self):
         return self.ip
 
 
 class PRINT(Instruction):
+    '''Print int to CPU log'''
 
-    opcode = 0x02
-    instruction_size = 2
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        try:
-            char = arguments[0]
-        except IndexError:
-            char = ' '
-        return [cls.real_opcode(), ord(char)]
+    operand_count = 1
 
     def do(self):
-        char = self.operands[0]
-        self.cpu.log.log('print', chr(char))
+        self.cpu.log.log('print', aux.word_to_str(self.get_operand(0)))
 
 
-class JUMP(OneAddressInstruction):
+class PRINTCHAR(Instruction):
+    '''Print char to CPU log'''
 
-    opcode = 0x03
-
-    def next_ip(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            pos = self.cpu.get_register(get_register_code(self.operands[0]))
-        else:
-            pos = aux.bytes_to_word(*self.operands)
-        return pos
-
-
-class PUSH(OneAddressInstruction):
-
-    opcode = 0x04
-    instruction_size = 3
+    operand_count = 1
 
     def do(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            self.cpu.stack_push_word(self.cpu.get_register(get_register_code(self.operands[0])))
-        else:
-            pos = aux.bytes_to_word(*self.operands)
-            self.cpu.stack_push_word(self.cpu.ram.read_word(pos))
+        self.cpu.log.log('print', chr(self.get_operand(0)))
 
 
-class POP(OneAddressInstruction):
+class MOV(Instruction):
+    '''Transfer data from reg/mem/immediate value to reg/mem'''
 
-    opcode = 0x05
-    instruction_size = 3
+    operand_count = 2
 
     def do(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            content = self.cpu.stack_pop_word()
-            self.cpu.set_register(get_register_code(self.operands[0]), content)
+        self.set_operand(0, self.get_operand(1))
+
+
+class ADD(Instruction):
+    '''Add'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) + self.get_operand(2))
+
+
+class SUB(Instruction):
+    '''Substract'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) - self.get_operand(2))
+
+
+class MUL(Instruction):
+    '''Multiply'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) * self.get_operand(2))
+
+
+class INC(Instruction):
+    '''Increase'''
+
+    operand_count = 2
+
+    def do(self):
+        self.set_operand(0, self.get_operand(0) + self.get_operand(1))
+
+
+class DEC(Instruction):
+    '''Decrease'''
+
+    operand_count = 2
+
+    def do(self):
+        self.set_operand(0, self.get_operand(0) - self.get_operand(1))
+
+
+class JUMP(Instruction):
+    '''Jump'''
+
+    operand_count = 1
+
+    def do(self):
+        return self.get_operand(0)
+
+
+class JZ(Instruction):
+    '''Jump if zero'''
+
+    operand_count = 2
+
+    def do(self):
+        if self.get_operand(0) == 0:
+            return self.get_operand(1)
+
+
+class JNZ(Instruction):
+    '''Jump if non-zero'''
+
+    operand_count = 2
+
+    def do(self):
+        if self.get_operand(0) != 0:
+            return self.get_operand(1)
+
+
+class JEQ(Instruction):
+    '''Jump if equal'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) == self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JNE(Instruction):
+    '''Jump if not equal'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) != self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JGT(Instruction):
+    '''Jump if greater'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) > self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JGE(Instruction):
+    '''Jump if greater or equal'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) >= self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JLT(Instruction):
+    '''Jump if less'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) < self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JLE(Instruction):
+    '''Jump if less or equal'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) <= self.get_operand(1):
+            return self.get_operand(2)
+
+
+class PUSH(Instruction):
+    '''Push to stack'''
+
+    operand_count = 1
+
+    def do(self):
+        oplen, optype, oprest = self.operands[0]
+        if oplen == OPLEN_WORD:
+            self.cpu.stack_push_word(self.get_operand(0))
         else:
-            pos = aux.bytes_to_word(*self.operands)
-            content = self.cpu.stack_pop_word()
-            self.cpu.ram.write_word(pos, content)
+            self.cpu.stack_push_byte(self.get_operand(0))
+
+
+class POP(Instruction):
+    '''Pop from stack'''
+
+    operand_count = 1
+
+    def do(self):
+        oplen, optype, oprest = self.operands[0]
+        if oplen == OPLEN_WORD:
+            self.set_operand(0, self.cpu.stack_pop_word())
+        else:
+            self.set_operand(0, self.cpu.stack_pop_byte())
 
 
 class INT(Instruction):
     '''Call interrupt'''
 
-    opcode = 0x06
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype == 1:
-            return 1
-        return 2
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if len(arguments):
-            interrupt_number = aux.str_to_int(arguments[0])
-            return [cls.real_opcode(), interrupt_number]
-        return [cls.real_opcode(1)]  # default interrupt (one byte opcode)
+    operand_count = 1
 
     def do(self):
-        self.cpu.stack_push_word(self.ip + self.real_instruction_size)  # IP of next instruction
-
-    def next_ip(self):
-        if self.subtype == 1:
-            interrupt_number = 0  # default interrupt number
-        else:
-            interrupt_number = self.operands[0]
+        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
+        interrupt_number = self.get_operand(0)
         return self.cpu.ram.read_word(self.cpu.system_addresses['IV'] + 2 * interrupt_number)
 
 
 class IRET(Instruction):
     '''Return from interrupt'''
 
-    opcode = 0x07
-    instruction_size = 1
-
-    def next_ip(self):
+    def do(self):
         return self.cpu.stack_pop_word()
 
 
-class CALL(OneAddressInstruction):
-    '''Call subroutine'''
+class SETINT(Instruction):
+    '''Set IV'''
 
-    opcode = 0x08
+    operand_count = 2
 
     def do(self):
-        self.cpu.stack_push_word(self.ip + self.real_instruction_size)  # IP of next instruction
+        interrupt_number = self.get_operand(0)
+        self.cpu.ram.write_word(self.cpu.system_addresses['IV'] + 2 * interrupt_number, self.get_operand(1))
 
-    def next_ip(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            pos = self.cpu.get_register(get_register_code(self.operands[0]))
-        else:
-            pos = aux.bytes_to_word(*self.operands)
-        return pos
+
+class CALL(Instruction):
+    '''Call subroutine'''
+
+    operand_count = 1
+
+    def do(self):
+        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
+        return self.get_operand(0)
 
 
 class RET(Instruction):
     '''Return from subroutine'''
 
-    opcode = 0x09
-    instruction_size = 1
-
-    def next_ip(self):
+    def do(self):
         return self.cpu.stack_pop_word()
 
 
-class MOVInstruction(Instruction):
-    '''Parent class of abstract MOV/MOVB instructions'''
-
-    def __repr__(self):
-        if self.subtype == OPERAND_TYPE_DIRECT_REGISTER:
-            return '%s[direct/reg]' % self.__class__.__name__
-        elif self.subtype == OPERAND_TYPE_INDIRECT_REGISTER:
-            return '%s[indirect/reg]' % self.__class__.__name__
-        elif self.subtype == OPERAND_TYPE_DIRECT_VALUE:
-            return '%s[direct/value]' % self.__class__.__name__
-        return '%s[indirect/value]' % self.__class__.__name__
-
-    def do(self):
-        raise errors.InvalidInstructionError(self)
-
-
-class MOV(MOVInstruction):
-    '''Abstract MOV instruction'''
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[0] in WORD_REGISTERS:  # WR
-            real_instruction = MOVWR
-        elif arguments[0] in BYTE_REGISTERS:  # BR
-            real_instruction = MOVBR
-        else:  # WM/BM
-            if arguments[0].startswith('['):
-                raise errors.InvalidArgumentError(arguments[0])
-            if len(arguments[0]) == 2:
-                raise errors.InvalidArgumentError(arguments[0])
-            if arguments[1] in WORD_REGISTERS:  # WM
-                real_instruction = MOVWM
-            elif arguments[1] in BYTE_REGISTERS:  # BM
-                real_instruction = MOVBM
-            elif arguments[1].startswith('['):  # WM (otherwise use MOVB)
-                real_instruction = MOVWM
-            elif len(arguments[1]) == 4:  # WM
-                real_instruction = MOVWM
-            else:  # BM
-                real_instruction = MOVBM
-        return real_instruction.assemble(ip, arguments)
-
-
-class MOVB(MOVInstruction):
-    '''Abstract MOVB instruction'''
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[0] in WORD_REGISTERS:  # WR
-            raise errors.InvalidArgumentError(arguments[0])
-        elif arguments[0] in BYTE_REGISTERS:  # BR
-            real_instruction = MOVBR
-        else:  # WM/BM
-            if arguments[0].startswith('['):
-                raise errors.InvalidArgumentError(arguments[0])
-            if len(arguments[0]) == 2:
-                raise errors.InvalidArgumentError(arguments[0])
-            if arguments[1] in WORD_REGISTERS:  # WM
-                raise errors.InvalidArgumentError(arguments[1])
-            elif arguments[1] in BYTE_REGISTERS:  # BM
-                real_instruction = MOVBM
-            elif arguments[1].startswith('['):  # BM (otherwise use MOV)
-                real_instruction = MOVBM
-            elif len(arguments[1]) == 4:  # WM
-                raise errors.InvalidArgumentError(arguments[1])
-            else:  # BM
-                real_instruction = MOVBM
-        return real_instruction.assemble(ip, arguments)
-
-
-class MOVWM(MOV):
-    '''Move word into memory'''
-
-    opcode = 0x0A
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype in [OPERAND_TYPE_DIRECT_REGISTER, OPERAND_TYPE_INDIRECT_REGISTER]:
-            return 4
-        return 5
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[1] in WORD_REGISTERS:
-            subtype = OPERAND_TYPE_DIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1])]
-        elif arguments[1] in BYTE_REGISTERS:
-            raise errors.InvalidArgumentError(arguments[1])
-        elif is_indirect_word_register(arguments[1]):
-            subtype = OPERAND_TYPE_INDIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1][1:-1])]
-        elif is_indirect_byte_register(arguments[1]):
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1].startswith('['):
-            if len(arguments[1][1:-1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_INDIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
-        else:
-            if len(arguments[1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_DIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1])))
-        return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + arg_code
-
-    def do(self):
-        target = aux.bytes_to_word(self.operands[0], self.operands[1])
-        if self.subtype == OPERAND_TYPE_DIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[2])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[2])
-            source = self.cpu.get_register(source_reg)
-        elif self.subtype == OPERAND_TYPE_INDIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[2])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[2])
-            source = self.cpu.ram.read_word(self.cpu.get_register(source_reg))
-        elif self.subtype == OPERAND_TYPE_DIRECT_VALUE:
-            source = aux.bytes_to_word(self.operands[2], self.operands[3])
-        else:
-            source = self.cpu.ram.read_word(aux.bytes_to_word(self.operands[2], self.operands[3]))
-        self.cpu.ram.write_word(target, source)
-
-
-class MOVBM(MOV):
-    '''Move byte into memory'''
-
-    opcode = 0x0B
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype == OPERAND_TYPE_INDIRECT_VALUE:
-            return 5
-        return 4
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[1] in WORD_REGISTERS:
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1] in BYTE_REGISTERS:
-            subtype = OPERAND_TYPE_DIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1])]
-        elif is_indirect_word_register(arguments[1]):
-            subtype = OPERAND_TYPE_INDIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1][1:-1])]
-        elif is_indirect_byte_register(arguments[1]):
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1].startswith('['):
-            if len(arguments[1][1:-1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_INDIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
-        else:
-            subtype = OPERAND_TYPE_DIRECT_VALUE
-            arg_code = [aux.str_to_int(arguments[1])]
-        return [cls.real_opcode(subtype)] + list(aux.word_to_bytes(aux.str_to_int(arguments[0]))) + arg_code
-
-    def do(self):
-        target = aux.bytes_to_word(self.operands[0], self.operands[1])
-        if self.subtype == OPERAND_TYPE_DIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[2])
-            if source_reg not in BYTE_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[2])
-            source = self.cpu.get_register(source_reg)
-        elif self.subtype == OPERAND_TYPE_INDIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[2])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[2])
-            source = self.cpu.ram.read_byte(self.cpu.get_register(source_reg))
-        elif self.subtype == OPERAND_TYPE_DIRECT_VALUE:
-            source = self.operands[2]
-        else:
-            source = self.cpu.ram.read_byte(aux.bytes_to_word(self.operands[2], self.operands[3]))
-        self.cpu.ram.write_byte(target, source)
-
-
-class MOVWR(MOV):
-    '''Move word into register'''
-
-    opcode = 0x0C
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype in [OPERAND_TYPE_DIRECT_REGISTER, OPERAND_TYPE_INDIRECT_REGISTER]:
-            return 3
-        return 4
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[1] in WORD_REGISTERS:
-            subtype = OPERAND_TYPE_DIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1])]
-        elif arguments[1] in BYTE_REGISTERS:
-            raise errors.InvalidArgumentError(arguments[1])
-        elif is_indirect_word_register(arguments[1]):
-            subtype = OPERAND_TYPE_INDIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1][1:-1])]
-        elif is_indirect_byte_register(arguments[1]):
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1].startswith('['):
-            if len(arguments[1][1:-1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_INDIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
-        else:
-            if len(arguments[1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_DIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1])))
-        return [cls.real_opcode(subtype), get_register_code(arguments[0])] + arg_code
-
-    def do(self):
-        target_reg = get_register_name_by_code(self.operands[0])
-        if target_reg not in WORD_REGISTERS:
-            raise errors.InvalidOperandError(target_reg, self.operands[0])
-        if self.subtype == OPERAND_TYPE_DIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[1])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[1])
-            source = self.cpu.get_register(source_reg)
-        elif self.subtype == OPERAND_TYPE_INDIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[1])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[1])
-            source = self.cpu.ram.read_word(self.cpu.get_register(source_reg))
-        elif self.subtype == OPERAND_TYPE_DIRECT_VALUE:
-            source = aux.bytes_to_word(self.operands[1], self.operands[2])
-        else:
-            source = self.cpu.ram.read_word(aux.bytes_to_word(self.operands[1], self.operands[2]))
-        self.cpu.set_register(target_reg, source)
-
-
-class MOVBR(MOV):
-    '''Move byte into register'''
-
-    opcode = 0x0D
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype == OPERAND_TYPE_INDIRECT_VALUE:
-            return 4
-        return 3
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if arguments[1] in WORD_REGISTERS:
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1] in BYTE_REGISTERS:
-            subtype = OPERAND_TYPE_DIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1])]
-        elif is_indirect_word_register(arguments[1]):
-            subtype = OPERAND_TYPE_INDIRECT_REGISTER
-            arg_code = [get_register_code(arguments[1][1:-1])]
-        elif is_indirect_byte_register(arguments[1]):
-            raise errors.InvalidArgumentError(arguments[1])
-        elif arguments[1].startswith('['):
-            if len(arguments[1][1:-1]) == 2:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_INDIRECT_VALUE
-            arg_code = list(aux.word_to_bytes(aux.str_to_int(arguments[1][1:-1])))
-        else:
-            if len(arguments[1]) == 4:
-                raise errors.InvalidArgumentError(arguments[1])
-            subtype = OPERAND_TYPE_DIRECT_VALUE
-            arg_code = [aux.str_to_int(arguments[1])]
-        return [cls.real_opcode(subtype), get_register_code(arguments[0])] + arg_code
-
-    def do(self):
-        target_reg = get_register_name_by_code(self.operands[0])
-        if target_reg not in BYTE_REGISTERS:
-            raise errors.InvalidOperandError(target_reg, self.operands[0])
-        if self.subtype == OPERAND_TYPE_DIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[1])
-            if source_reg not in BYTE_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[1])
-            source = self.cpu.get_register(source_reg)
-        elif self.subtype == OPERAND_TYPE_INDIRECT_REGISTER:
-            source_reg = get_register_name_by_code(self.operands[1])
-            if source_reg not in WORD_REGISTERS:
-                raise errors.InvalidOperandError(source_reg, self.operands[1])
-            source = self.cpu.ram.read_byte(self.cpu.get_register(source_reg))
-        elif self.subtype == OPERAND_TYPE_DIRECT_VALUE:
-            source = self.operands[1]
-        else:
-            source = self.cpu.ram.read_byte(aux.bytes_to_word(self.operands[1], self.operands[2]))
-        self.cpu.set_register(target_reg, source)
-
-
 class IN(Instruction):
+    '''Read from IOPort'''
 
-    opcode = 0x0E
-
-    def __repr__(self):
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            return '%s[reg]' % self.__class__.__name__
-        return '%s[abs]' % self.__class__.__name__
-
-    @classmethod
-    def get_instruction_size(cls, subtype):
-        if subtype == ADDRESSING_MODE_REGISTER:
-            return 3
-        return 4
-
-    @classmethod
-    def assemble(cls, ip, arguments):
-        if len(arguments) != 2:
-            raise errors.InvalidArgumentError('Number of arguments must be 2 for %s.' % cls.__name__)
-        ioport_number = aux.str_to_int(arguments[0])
-        pos = arguments[1]
-        subtype, operands = get_address(pos, ip)
-        return [cls.real_opcode(subtype), ioport_number] + operands
+    operand_count = 2
 
     def do(self):
-        ioport_number = self.operands[0]
-        if self.subtype == ADDRESSING_MODE_REGISTER:
-            pos = self.cpu.get_register(get_register_code(self.operands[1]))
-        else:
-            pos = aux.bytes_to_word(self.operands[1], self.operands[2])
+        ioport_number = self.get_operand(0)
+        pos = self.get_operand(1)
         input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
         for idx, value in enumerate(input_data):
             self.cpu.ram.write_byte(pos + idx, ord(value))

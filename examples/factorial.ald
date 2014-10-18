@@ -1,0 +1,64 @@
+# Print factorials from 0! to 8! forever
+# 9! is out of word range
+# FACT is a recursive function, parameters and return values are handled through the stack
+
+
+# MAIN
+
+START:
+        MOV [COUNTER] 0000
+
+LOOP:
+        DEC SP 0002  # place for retval
+        PUSH [COUNTER]  # param
+        CALL FACT
+        INC SP 0002  # discard param
+        POP AX  # retval
+        PRINT [COUNTER]
+        PRINTCHAR 21  # !
+        PRINTCHAR 3D  # =
+        PRINT AX
+        PRINTCHAR 20  # ' '
+        INC [COUNTER] 0001
+        JLE [COUNTER] [MAX_CNT] LOOP
+        JUMP START
+
+# END MAIN
+
+
+# SUB FACT (param): retval
+FACT:
+
+        # SUB PROLOGUE:
+        PUSH BP
+        MOV BP SP
+        PUSH AX  # save regs
+
+        # SUBMAIN:
+        JNZ [BP+05] NONZERO  # param == 0?
+        MOV [BP+07] 0001  # retval
+        JUMP EPILOGUE
+
+NONZERO:
+        SUB AX [BP+05] 0001  # AX = param - 1
+        DEC SP 0002  # place for retval
+        PUSH AX  # param-1
+        CALL FACT
+        INC SP 0002
+        POP AX  # AX = fact(param-1)
+        MUL [BP+07] [BP+05] AX  # retval = param * fact(param-1)
+
+EPILOGUE:
+        POP AX  # restore regs
+        POP BP
+        RET
+
+# ENDSUB FACT
+
+
+# DATA
+
+COUNTER:        DAT 00 00
+MAX_CNT:        DAT 00 08
+
+# END DATA

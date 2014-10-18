@@ -1,8 +1,10 @@
 # Chat between two terminals
+# TODO: actually implement this
+
 
 START:
-        MOV FE40 TERMINAL_HANDLER_1  # set IV[20] (ioport_in[0])
-        MOV FE42 TERMINAL_HANDLER_2  # set IV[21] (ioport_in[1])
+        SETINT 20 TERMINAL_HANDLER_1  # ioport_in[0]
+        SETINT 21 TERMINAL_HANDLER_2  # ioport_in[0]
 
 MAIN_LOOP:
         HALT

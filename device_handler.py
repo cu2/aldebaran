@@ -76,21 +76,21 @@ class DeviceHandler(aux.Hardware):
             try:
                 if device_type < 1 or device_type > 255:  # device type 0 means no device
                     raise ValueError
-                if device_id < 0 or device_id > 256**3 - 1:
+                if device_id < 0 or device_id > 0x1000000 - 1:
                     raise ValueError
             except ValueError:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: Device type must be between 1 and 255, device ID must be between 0 and %s.' % (256**3 - 1))
+                self.wfile.write('ERROR: Device type must be between 1 and 255, device ID must be between 0 and %s.' % (0x1000000 - 1))
                 self.wfile.write('\n')
                 return
             self.server.log.log('device_handler', 'Registering device to IOPort %s...' % ioport_number)
             self.server.log.log('device_handler', 'Device type and ID: %s/%s' % (device_type, device_id))
             self.server.log.log('device_handler', 'Device host and port: %s:%s' % (device_host, device_port))
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number, device_type)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1, device_id / 256**2)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 2, (device_id / 256) % 256)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 3, device_id % 256)
+            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1, device_id >> 16)
+            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 2, (device_id >> 8) & 0xFF)
+            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 3, device_id & 0xFF)
             self.server.ioports[ioport_number].register_device(device_host, device_port)
             self.server.interrupt_queue.put(self.server.cpu.system_interrupts['device_registered'])
             self.send_response(200)
