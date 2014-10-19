@@ -99,15 +99,24 @@ class Assembler(aux.Hardware):
             tokens = self.tokenize(code)
             instruction_name = tokens[0].upper()
             arguments = self.substitute_labels(tokens[1:], labels)
-            if instruction_name == 'DAT':
-                for arg in arguments:
-                    if arg[0] == "'" or arg[0] == '"':
-                        real_arg = ast.literal_eval(arg)
-                        ip += len(real_arg)
-                    elif len(arg) == 2:
-                        ip += 1
-                    else:
-                        ip += 2
+            if instruction_name in ['DAT', 'DATN']:
+                if instruction_name == 'DATN':
+                    args = arguments[1:]
+                    repeat = aux.str_to_int(arguments[0])
+                else:
+                    args = arguments
+                    repeat = 1
+                if repeat < 0 or repeat > 255:
+                    raise errors.ByteOutOfRangeError(hex(repeat))
+                for _ in xrange(repeat):
+                    for arg in args:
+                        if arg[0] == "'" or arg[0] == '"':
+                            real_arg = ast.literal_eval(arg)
+                            ip += len(real_arg)
+                        elif len(arg) == 2:
+                            ip += 1
+                        else:
+                            ip += 2
                 continue
             if instruction_name not in self.inst_dict:
                 raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_name, ' '.join(arguments)))
@@ -132,19 +141,26 @@ class Assembler(aux.Hardware):
             tokens = self.tokenize(code)
             instruction_name = tokens[0].upper()
             arguments = self.substitute_labels(tokens[1:], labels)
-            if instruction_name == 'DAT':
-                for arg in arguments:
-                    if arg[0] == "'" or arg[0] == '"':
-                        real_arg = ast.literal_eval(arg)
-                        for char in real_arg:
-                            program.append(ord(char))
-                        ip += len(real_arg)
-                    elif len(arg) == 2:
-                        program.append(aux.str_to_int(arg))
-                        ip += 1
-                    else:
-                        program += list(aux.word_to_bytes(aux.str_to_int(arg)))
-                        ip += 2
+            if instruction_name in ['DAT', 'DATN']:
+                if instruction_name == 'DATN':
+                    args = arguments[1:]
+                    repeat = aux.str_to_int(arguments[0])
+                else:
+                    args = arguments
+                    repeat = 1
+                for _ in xrange(repeat):
+                    for arg in args:
+                        if arg[0] == "'" or arg[0] == '"':
+                            real_arg = ast.literal_eval(arg)
+                            for char in real_arg:
+                                program.append(ord(char))
+                            ip += len(real_arg)
+                        elif len(arg) == 2:
+                            program.append(aux.str_to_int(arg))
+                            ip += 1
+                        else:
+                            program += list(aux.word_to_bytes(aux.str_to_int(arg)))
+                            ip += 2
                 continue
             instruction_opcode = self.inst_dict[instruction_name]
             opcodes = [instruction_opcode]
