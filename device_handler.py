@@ -1,8 +1,14 @@
+import struct
 import threading
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 
 import aux
+
+
+COMMAND_REGISTER = 0
+COMMAND_UNREGISTER = 1
+COMMAND_DATA = 2
 
 
 class DeviceHandler(aux.Hardware):
@@ -34,17 +40,17 @@ class DeviceHandler(aux.Hardware):
                 return
             try:
                 request_body = self.rfile.read(request_body_length)
-                command, argument = request_body[:4], request_body[4:]
+                command, argument = struct.unpack('B', request_body[:1])[0], request_body[1:]
             except Exception:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
                 self.wfile.write('ERROR: Cannot parse request.')
                 self.wfile.write('\n')
                 return
-            if command == 'HELO':
+            if command == COMMAND_REGISTER:
                 self.register_device(ioport_number, argument)
                 return
-            if command == 'BYE!':
+            if command == COMMAND_UNREGISTER:
                 self.unregister_device(ioport_number)
                 return
             if not self.server.ioports[ioport_number].registered:
@@ -62,35 +68,24 @@ class DeviceHandler(aux.Hardware):
             return
 
         def register_device(self, ioport_number, argument):
+            device_id = [0, 0, 0]
             try:
-                device_type, device_id, device_host, device_port = argument.split(',')
-                device_type = int(device_type)
-                device_id = int(device_id)
-                device_port = int(device_port)
+                device_type, device_id[0], device_id[1], device_id[2], device_host, device_port = struct.unpack('BBBB255pH', argument)
             except Exception:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
                 self.wfile.write('ERROR: Cannot parse argument.')
                 self.wfile.write('\n')
                 return
-            try:
-                if device_type < 1 or device_type > 255:  # device type 0 means no device
-                    raise ValueError
-                if device_id < 0 or device_id > 0x1000000 - 1:
-                    raise ValueError
-            except ValueError:
-                self.send_response(400)  # Bad Request
-                self.end_headers()
-                self.wfile.write('ERROR: Device type must be between 1 and 255, device ID must be between 0 and %s.' % (0x1000000 - 1))
-                self.wfile.write('\n')
-                return
             self.server.log.log('device_handler', 'Registering device to IOPort %s...' % ioport_number)
-            self.server.log.log('device_handler', 'Device type and ID: %s/%s' % (aux.byte_to_str(device_type), aux.int_to_str(device_id, 3)))
+            self.server.log.log('device_handler', 'Device type and ID: %s %s' % (
+                aux.byte_to_str(device_type),
+                ' '.join([aux.byte_to_str(device_id[i]) for i in xrange(3)])
+            ))
             self.server.log.log('device_handler', 'Device host and port: %s:%s' % (device_host, device_port))
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number, device_type)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1, device_id >> 16)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 2, (device_id >> 8) & 0xFF)
-            self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 3, device_id & 0xFF)
+            for i in xrange(3):
+                self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1 + i, device_id[i])
             self.server.ioports[ioport_number].register_device(device_host, device_port)
             self.server.interrupt_queue.put(self.server.cpu.system_interrupts['device_registered'])
             self.send_response(200)
@@ -197,7 +192,7 @@ class IOPort(aux.Hardware):
         self.registered = False
 
     def handle_input(self, command, argument):
-        if command != 'DATA':
+        if command != COMMAND_DATA:
             return 400, 'ERROR: Unknown command.\n'
         self.log.log('ioport %s' % self.ioport_number, 'Command: %s' % command)
         self.log.log('ioport %s' % self.ioport_number, 'Argument: %s' % aux.binary_to_str(argument))
