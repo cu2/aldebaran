@@ -478,26 +478,29 @@ class INT(Instruction):
     operand_count = 1
 
     def do(self):
+        self.cpu.stack_push_flags()
         self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
         interrupt_number = self.get_operand(0)
-        return self.cpu.ram.read_word(self.cpu.system_addresses['IV'] + 2 * interrupt_number)
+        return self.cpu.ram.read_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number)
 
 
 class IRET(Instruction):
     '''Return from interrupt'''
 
     def do(self):
-        return self.cpu.stack_pop_word()
+        next_ip = self.cpu.stack_pop_word()
+        self.cpu.stack_pop_flags()
+        return next_ip
 
 
 class SETINT(Instruction):
-    '''Set IV'''
+    '''Set IVT'''
 
     operand_count = 2
 
     def do(self):
         interrupt_number = self.get_operand(0)
-        self.cpu.ram.write_word(self.cpu.system_addresses['IV'] + 2 * interrupt_number, self.get_operand(1))
+        self.cpu.ram.write_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number, self.get_operand(1))
 
 
 class CALL(Instruction):
@@ -531,3 +534,31 @@ class IN(Instruction):
         self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
         self.cpu.set_register('CX', len(input_data))
         self.cpu.device_handler.ioports[ioport_number].input_buffer = ''
+
+
+class STI(Instruction):
+    '''Enable interrupts'''
+
+    def do(self):
+        self.cpu.enable_interrupts()
+
+
+class CLI(Instruction):
+    '''Disable interrupts'''
+
+    def do(self):
+        self.cpu.disable_interrupts()
+
+
+class PUSHF(Instruction):
+    '''Push FLAGS to stack'''
+
+    def do(self):
+        self.cpu.stack_push_flags()
+
+
+class POPF(Instruction):
+    '''Pop flags from stack'''
+
+    def do(self):
+        self.cpu.stack_pop_flags()

@@ -120,6 +120,9 @@ class CPU(aux.Hardware):
             'SI': 0x0000,
             'DI': 0x0000,
         }
+        self.flags = {
+            'interrupt': 1,
+        }
         self.operand_buffer_size = 16
         self.halt = False
         self.shutdown = False
@@ -133,7 +136,7 @@ class CPU(aux.Hardware):
         if not self.ram:
             self.log.log('cpu', 'ERROR: Cannot run without RAM.')
             return
-        if self.interrupt_queue:
+        if self.interrupt_queue and self.flags['interrupt']:
             interrupt_number = None
             try:
                 interrupt_number = self.interrupt_queue.get_nowait()
@@ -145,8 +148,6 @@ class CPU(aux.Hardware):
                 except ValueError:
                     self.log.log('cpu', 'illegal interrupt: %s' % interrupt_number)
                     return
-                self.log.log('cpu', 'calling interrupt: %s' % aux.byte_to_str(interrupt_number))
-                self.halt = False
                 self.call_int(interrupt_number)
                 return
         if self.halt:
@@ -250,9 +251,34 @@ class CPU(aux.Hardware):
         self.log.log('cpu', 'popped word %s' % aux.word_to_str(value))
         return value
 
+    def stack_push_flags(self):
+        flag_word = 0x0000
+        for idx, name in enumerate(['interrupt']):
+            flag_word += self.flags[name] << idx
+        self.stack_push_word(flag_word)
+        self.log.log('cpu', 'pushed FLAGS')
+
+    def stack_pop_flags(self):
+        flag_word = self.stack_pop_word()
+        for idx, name in enumerate(['interrupt']):
+            self.flags[name] = (flag_word >> idx) & 0x0001
+        self.log.log('cpu', 'popped FLAGS')
+
+    def enable_interrupts(self):
+        self.flags['interrupt'] = True
+        self.log.log('cpu', 'interrupts enabled')
+
+    def disable_interrupts(self):
+        self.flags['interrupt'] = False
+        self.log.log('cpu', 'interrupts disabled')
+
     def call_int(self, interrupt_number):
+        self.log.log('cpu', 'calling interrupt: %s' % aux.byte_to_str(interrupt_number))
+        self.halt = False
+        self.stack_push_flags()
+        self.disable_interrupts()
         self.stack_push_word(self.registers['IP'])
-        self.registers['IP'] = self.ram.read_word(self.system_addresses['IV'] + 2 * interrupt_number) % self.ram.size
+        self.registers['IP'] = self.ram.read_word(self.system_addresses['IVT'] + 2 * interrupt_number) % self.ram.size
 
 
 class RAM(aux.Hardware):
@@ -300,7 +326,8 @@ def main(args):
     # config:
     number_of_ioports = 4
     ram_size = 0x10000
-    IV_size = 256 * 2
+    number_of_interrupts = 256
+    IVT_size = number_of_interrupts * 2
     device_registry_size = 16 * 4
     system_interrupts = {
         'device_registered': 30,
@@ -309,10 +336,10 @@ def main(args):
     }
     system_addresses = {
         'entry_point': 0x0000,
-        'SP': ram_size - IV_size - device_registry_size - 1 - 1,
-        'default_interrupt_handler': ram_size - IV_size - device_registry_size - 1,
-        'device_registry_address': ram_size - IV_size - device_registry_size,
-        'IV': ram_size - IV_size,
+        'SP': ram_size - IVT_size - device_registry_size - 1 - 1,
+        'default_interrupt_handler': ram_size - IVT_size - device_registry_size - 1,
+        'device_registry_address': ram_size - IVT_size - device_registry_size,
+        'IVT': ram_size - IVT_size,
     }
     clock_freq = 2  # Hz
     host = 'localhost'
@@ -335,7 +362,7 @@ def main(args):
     bios = BIOS({
         'start': (system_addresses['entry_point'], start_program),
         'default_interrupt_handler': (system_addresses['default_interrupt_handler'], [inst_dict['IRET']]),
-        'IV': (system_addresses['IV'], list(aux.word_to_bytes(system_addresses['default_interrupt_handler'])) * 256),
+        'IVT': (system_addresses['IVT'], list(aux.word_to_bytes(system_addresses['default_interrupt_handler'])) * number_of_interrupts),
     })
     # start
     aldebaran = Aldebaran({
