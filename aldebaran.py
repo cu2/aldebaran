@@ -168,8 +168,9 @@ class CPU(aux.Hardware):
     def mini_debugger(self):
         if not isinstance(self.log, aux.SilentLog):
             ram_page = (self.registers['IP'] / 16) * 16
-            stack_page = (self.registers['SP'] / 12) * 12
-            self.log.log('cpu', 'IP=%s  AX/BX/CX/DX=%s/%s/%s/%s  RAM[%s]:%s  STACK[%s]:%s%s' % (
+            rel_sp = self.system_addresses['SP'] - self.registers['SP']
+            stack_page = self.system_addresses['SP'] - 11 - (rel_sp / 12) * 12
+            self.log.log('cpu', 'IP=%s AX/BX/CX/DX=%s/%s/%s/%s RAM[%s]:%s ST[%s/%s]:%s' % (
                 aux.word_to_str(self.registers['IP']),
                 aux.word_to_str(self.registers['AX']),
                 aux.word_to_str(self.registers['BX']),
@@ -178,14 +179,14 @@ class CPU(aux.Hardware):
                 aux.word_to_str(ram_page),
                 ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(ram_page, ram_page + 16)]),
                 aux.word_to_str(stack_page),
+                aux.word_to_str(rel_sp / 12),
                 ''.join([aux.byte_to_str(self.ram.mem[idx]) + (
                         (
                             '<{' if idx == self.registers['BP'] else '< '
                         ) if idx == self.registers['SP'] else (
                             '{ ' if idx == self.registers['BP'] else '  '
                         )
-                    ) for idx in xrange(stack_page, stack_page + 12)]),
-                '  '.join([aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(stack_page + 12, stack_page + 16)]),
+                    ) for idx in xrange(stack_page, stack_page + 16)]),
             ))
 
     def get_register(self, register_name):

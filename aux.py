@@ -81,8 +81,18 @@ def word_to_str(word, signed=False):
     return '%04X' % word
 
 
+def binary_to_str(binary, padding=' '):
+    return padding.join('{:02X}'.format(ord(x)) for x in binary)
+
+
 def str_to_int(str):
     return int(str, 16)
+
+
+def int_to_str(integer, length):
+    if integer > 0x100**length - 1:
+        raise errors.OutOfRangeError(hex(integer))
+    return ('%0{0}X'.format(length)) % integer
 
 
 def get_low(word):

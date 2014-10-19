@@ -85,7 +85,7 @@ class DeviceHandler(aux.Hardware):
                 self.wfile.write('\n')
                 return
             self.server.log.log('device_handler', 'Registering device to IOPort %s...' % ioport_number)
-            self.server.log.log('device_handler', 'Device type and ID: %s/%s' % (device_type, device_id))
+            self.server.log.log('device_handler', 'Device type and ID: %s/%s' % (aux.byte_to_str(device_type), aux.int_to_str(device_id, 3)))
             self.server.log.log('device_handler', 'Device host and port: %s:%s' % (device_host, device_port))
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number, device_type)
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1, device_id >> 16)
@@ -197,14 +197,14 @@ class IOPort(aux.Hardware):
         self.registered = False
 
     def handle_input(self, command, argument):
-        self.log.log('ioport %s' % self.ioport_number, 'Command: %s' % command)
-        self.log.log('ioport %s' % self.ioport_number, 'Argument: %s' % argument)
         if command != 'DATA':
             return 400, 'ERROR: Unknown command.\n'
+        self.log.log('ioport %s' % self.ioport_number, 'Command: %s' % command)
+        self.log.log('ioport %s' % self.ioport_number, 'Argument: %s' % aux.binary_to_str(argument))
         if len(self.input_buffer):
             return 400, 'ERROR: Input buffer contains unread data.\n'
-        if len(argument) > 6:
-            return 400, 'ERROR: Cannot receive more than 256 bytes.\n'
+        if len(argument) > 255:
+            return 400, 'ERROR: Cannot receive more than 255 bytes.\n'
         self.input_buffer = argument
         self.device_handler.interrupt_queue.put(self.device_handler.cpu.system_interrupts['ioport_in'][self.ioport_number])
-        return 200, 'Received: %s\n' % argument
+        return 200, 'Received: %s (%s bytes)\n' % (aux.binary_to_str(argument), len(argument))

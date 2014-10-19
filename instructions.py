@@ -518,7 +518,7 @@ class RET(Instruction):
 
 
 class IN(Instruction):
-    '''Read from IOPort'''
+    '''Transfer input data from IOPort into memory and set CX to length'''
 
     operand_count = 2
 
@@ -528,5 +528,6 @@ class IN(Instruction):
         input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
         for idx, value in enumerate(input_data):
             self.cpu.ram.write_byte(pos + idx, ord(value))
-        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s' % (ioport_number, input_data))
+        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
+        self.cpu.set_register('CX', len(input_data))
         self.cpu.device_handler.ioports[ioport_number].input_buffer = ''

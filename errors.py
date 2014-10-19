@@ -46,6 +46,10 @@ class ByteOutOfRangeError(Exception):
     pass
 
 
+class OutOfRangeError(Exception):
+    pass
+
+
 class InvalidWriteOperationError(Exception):
     pass
 

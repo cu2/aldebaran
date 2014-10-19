@@ -9,16 +9,26 @@ START:
 MAIN_LOOP:
         HALT
 
+
 TERMINAL_HANDLER_1:
         IN 00 INPUT_BUFFER_1
+        MOV BX 0000
+LOOP_1:
+        JEQ BX CX FINISHED_1
+        PRINTCHAR [INPUT_BUFFER_1+BX]B
+        INC BX 01
+        JUMP LOOP_1
+FINISHED_1:
         IRET
+
 
 TERMINAL_HANDLER_2:
         IN 00 INPUT_BUFFER_2
         IRET
 
+
 INPUT_BUFFER_1:
-        NOP  # should be 256 NOPS
+        DATN FF 00
 
 INPUT_BUFFER_2:
-        NOP  # should be 256 NOPS
+        DATN FF 00
