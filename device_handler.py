@@ -1,3 +1,5 @@
+import Queue
+import requests
 import struct
 import threading
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
@@ -118,13 +120,15 @@ class DeviceHandler(aux.Hardware):
             self.log = log
             self.daemon_threads = True
 
-    def __init__(self, host, port, device_registry_address, ioports, log=None):
+    def __init__(self, host, port, device_status_table, device_registry_address, ioports, log=None):
         aux.Hardware.__init__(self, log)
         self.address = (host, port)
+        self.device_status_table = device_status_table
         self.device_registry_address = device_registry_address
         self.ioports = ioports
         self.cpu = None
         self.interrupt_queue = None
+        self.output_queue = Queue.Queue()
         self.ram = None
 
     def register_architecture(self, cpu, interrupt_queue, ram):
@@ -133,6 +137,28 @@ class DeviceHandler(aux.Hardware):
         self.ram = ram
         for ioport in self.ioports:
             ioport.register_architecture(self)
+
+    def output_thread_run(self):
+        self.log.log('device_handler', 'Output thread started.')
+        while True:
+            ioport_number, target_host, target_port, query, data = self.output_queue.get()
+            url = 'http://%s:%s/%s' % (target_host, target_port, query)
+            self.log.log('device_handler', 'Sending query to %s...' % url)
+            output_status = 1
+            try:
+                r = requests.post(
+                    url=url,
+                    data=data,
+                    headers={'content-type': 'application/octet-stream'},
+                )
+                self.log.log('device_handler', 'Response: %s' % r.text)
+                if r.status_code == 200:
+                    output_status = 0
+            except Exception as e:
+                self.log.log('device_handler', 'Error sending query: %s' % e)
+            if query == 'data':
+                self.ram.write_word(self.device_status_table + ioport_number, output_status)
+                self.interrupt_queue.put(self.cpu.system_interrupts['ioport_out'][ioport_number])
 
     def start(self):
         if not self.cpu:
@@ -149,6 +175,9 @@ class DeviceHandler(aux.Hardware):
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
+        self.output_thread = threading.Thread(target=self.output_thread_run)
+        self.output_thread.daemon = True
+        self.output_thread.start()
         self.log.log('device_handler', 'Started.')
         return 0
 
@@ -203,3 +232,26 @@ class IOPort(aux.Hardware):
         self.input_buffer = argument
         self.device_handler.interrupt_queue.put(self.device_handler.cpu.system_interrupts['ioport_in'][self.ioport_number])
         return 200, 'Received: %s (%s bytes)\n' % (aux.binary_to_str(argument), len(argument))
+
+    def send_ack(self):
+        self.log.log('ioport %s' % self.ioport_number, 'Sending ACK...')
+        self.device_handler.output_queue.put((
+            self.ioport_number,
+            self.device_host,
+            self.device_port,
+            'ack',
+            'ACK'
+        ))
+        self.log.log('ioport %s' % self.ioport_number, 'ACK sent.')
+
+    def send_output(self):
+        self.log.log('ioport %s' % self.ioport_number, 'Sending output...')
+        self.device_handler.output_queue.put((
+            self.ioport_number,
+            self.device_host,
+            self.device_port,
+            'data',
+            self.output_buffer
+        ))
+        self.output_buffer = ''
+        self.log.log('ioport %s' % self.ioport_number, 'Output sent.')

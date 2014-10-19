@@ -472,6 +472,37 @@ class POP(Instruction):
             self.set_operand(0, self.cpu.stack_pop_byte())
 
 
+class PUSHF(Instruction):
+    '''Push FLAGS to stack'''
+
+    def do(self):
+        self.cpu.stack_push_flags()
+
+
+class POPF(Instruction):
+    '''Pop flags from stack'''
+
+    def do(self):
+        self.cpu.stack_pop_flags()
+
+
+class CALL(Instruction):
+    '''Call subroutine'''
+
+    operand_count = 1
+
+    def do(self):
+        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
+        return self.get_operand(0)
+
+
+class RET(Instruction):
+    '''Return from subroutine'''
+
+    def do(self):
+        return self.cpu.stack_pop_word()
+
+
 class INT(Instruction):
     '''Call interrupt'''
 
@@ -503,39 +534,6 @@ class SETINT(Instruction):
         self.cpu.ram.write_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number, self.get_operand(1))
 
 
-class CALL(Instruction):
-    '''Call subroutine'''
-
-    operand_count = 1
-
-    def do(self):
-        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
-        return self.get_operand(0)
-
-
-class RET(Instruction):
-    '''Return from subroutine'''
-
-    def do(self):
-        return self.cpu.stack_pop_word()
-
-
-class IN(Instruction):
-    '''Transfer input data from IOPort into memory and set CX to length'''
-
-    operand_count = 2
-
-    def do(self):
-        ioport_number = self.get_operand(0)
-        pos = self.get_operand(1)
-        input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
-        for idx, value in enumerate(input_data):
-            self.cpu.ram.write_byte(pos + idx, ord(value))
-        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
-        self.cpu.set_register('CX', len(input_data))
-        self.cpu.device_handler.ioports[ioport_number].input_buffer = ''
-
-
 class STI(Instruction):
     '''Enable interrupts'''
 
@@ -550,15 +548,35 @@ class CLI(Instruction):
         self.cpu.disable_interrupts()
 
 
-class PUSHF(Instruction):
-    '''Push FLAGS to stack'''
+class IN(Instruction):
+    '''Transfer input data from IOPort into memory, set CX to length and send ACK'''
+
+    operand_count = 2
 
     def do(self):
-        self.cpu.stack_push_flags()
+        ioport_number = self.get_operand(0)
+        pos = self.get_operand(1)
+        input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
+        for idx, value in enumerate(input_data):
+            self.cpu.ram.write_byte(pos + idx, ord(value))
+        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
+        self.cpu.set_register('CX', len(input_data))
+        self.cpu.device_handler.ioports[ioport_number].input_buffer = ''
+        self.cpu.device_handler.ioports[ioport_number].send_ack()
 
 
-class POPF(Instruction):
-    '''Pop flags from stack'''
+class OUT(Instruction):
+    '''Transfer output data (CX bytes) from memory to IOPort and set CX'''
+
+    operand_count = 2
 
     def do(self):
-        self.cpu.stack_pop_flags()
+        ioport_number = self.get_operand(0)
+        pos = self.get_operand(1)
+        cx = self.cpu.get_register('CX')
+        self.cpu.device_handler.ioports[ioport_number].output_buffer = ''.join([
+            chr(self.cpu.ram.read_byte(pos + idx)) for idx in xrange(cx)
+        ])
+        self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(self.cpu.device_handler.ioports[ioport_number].output_buffer), cx))
+        self.cpu.set_register('CX', 0)
+        self.cpu.device_handler.ioports[ioport_number].send_output()

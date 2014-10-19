@@ -25,7 +25,7 @@ class Aldebaran(aux.Hardware):
         # architecture:
         self.cpu.register_architecture(self.ram, self.interrupt_queue, self.device_handler)
         self.clock.register_architecture(self.cpu)
-        self.interrupt_handler.register_architecture(self.cpu, self.interrupt_queue)
+        self.interrupt_handler.register_architecture(self.interrupt_queue)
         self.device_handler.register_architecture(self.cpu, self.interrupt_queue, self.ram)
 
     def load_bios(self):
@@ -324,24 +324,27 @@ class BIOS(aux.Hardware):
 
 def main(args):
     # config:
-    number_of_ioports = 4
+    number_of_ioports = 4  # "physically"
+    number_of_devices = 16  # potencially
     ram_size = 0x10000
     number_of_interrupts = 256
     IVT_size = number_of_interrupts * 2
-    device_registry_size = 16 * 4
+    device_registry_size = number_of_devices * 4
     system_interrupts = {
         'device_registered': 30,
         'device_unregistered': 31,
         'ioport_in': [32 + ioport_number for ioport_number in xrange(number_of_ioports)],
+        'ioport_out': [48 + ioport_number for ioport_number in xrange(number_of_ioports)],
     }
     system_addresses = {
         'entry_point': 0x0000,
-        'SP': ram_size - IVT_size - device_registry_size - 1 - 1,
-        'default_interrupt_handler': ram_size - IVT_size - device_registry_size - 1,
+        'SP': ram_size - IVT_size - device_registry_size - number_of_devices - 1 - 1,
+        'default_interrupt_handler': ram_size - IVT_size - device_registry_size - number_of_devices - 1,
+        'device_status_table': ram_size - IVT_size - device_registry_size - number_of_devices,
         'device_registry_address': ram_size - IVT_size - device_registry_size,
         'IVT': ram_size - IVT_size,
     }
-    clock_freq = 2  # Hz
+    clock_freq = 200  # Hz
     host = 'localhost'
     base_port = 35000
     interrupt_handler_port = 0
@@ -374,6 +377,7 @@ def main(args):
         'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + interrupt_handler_port, aux.Log()),
         'device_handler': device_handler.DeviceHandler(
             host, base_port + device_handler_port,
+            system_addresses['device_status_table'],
             system_addresses['device_registry_address'],
             [device_handler.IOPort(ioport_number, aux.Log()) for ioport_number in xrange(number_of_ioports)],
             aux.Log(),

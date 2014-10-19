@@ -121,6 +121,9 @@ class Assembler(aux.Hardware):
             if instruction_name not in self.inst_dict:
                 raise errors.UnknownInstructionError('[line %s] %s %s' % (linenum + 1, instruction_name, ' '.join(arguments)))
             instruction_opcode = self.inst_dict[instruction_name]
+            operand_count = getattr(instructions, instruction_name).operand_count
+            if operand_count != len(arguments):
+                raise errors.ArgumentCountError('[line %s] %s %s' % (linenum + 1, instruction_name, ' '.join(arguments)))
             opcodes = [instruction_opcode]
             for arg in arguments:
                 opcodes += instructions.encode_argument(arg)  # labels are not okay, but len(opcodes) is

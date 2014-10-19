@@ -23,9 +23,8 @@ class InterruptHandler(aux.Hardware):
 
     class Server(ThreadingMixIn, HTTPServer):
 
-        def __init__(self, server_address, request_handler, cpu, interrupt_queue, log):
+        def __init__(self, server_address, request_handler, interrupt_queue, log):
             HTTPServer.__init__(self, server_address, request_handler)
-            self.cpu = cpu
             self.interrupt_queue = interrupt_queue
             self.log = log
             self.daemon_threads = True
@@ -33,22 +32,17 @@ class InterruptHandler(aux.Hardware):
     def __init__(self, host, port, log=None):
         aux.Hardware.__init__(self, log)
         self.address = (host, port)
-        self.cpu = None
         self.interrupt_queue = None
 
-    def register_architecture(self, cpu, interrupt_queue):
-        self.cpu = cpu
+    def register_architecture(self, interrupt_queue):
         self.interrupt_queue = interrupt_queue
 
     def start(self):
-        if not self.cpu:
-            self.log.log('interrupt_handler', 'ERROR: Cannot run without CPU.')
-            return 1
         if not self.interrupt_queue:
             self.log.log('interrupt_handler', 'ERROR: Cannot run without Interrupt Queue.')
             return 1
         self.log.log('interrupt_handler', 'Starting...')
-        self.server = self.Server(self.address, self.RequestHandler, self.cpu, self.interrupt_queue, self.log)
+        self.server = self.Server(self.address, self.RequestHandler, self.interrupt_queue, self.log)
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()

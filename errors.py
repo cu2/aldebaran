@@ -6,6 +6,10 @@ class InvalidInstructionError(Exception):
     pass
 
 
+class ArgumentCountError(Exception):
+    pass
+
+
 class InvalidArgumentError(Exception):
     pass
 
