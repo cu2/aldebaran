@@ -39,7 +39,6 @@ class Aldebaran(aux.Hardware):
 
     def run(self):
         self.log.log('aldebaran', 'Started.')
-        start_time = time.time()
         retval = self.load_bios()
         if retval != 0:
             return retval
@@ -49,10 +48,11 @@ class Aldebaran(aux.Hardware):
         retval = self.device_handler.start()
         if retval != 0:
             return retval
+        start_time = time.time()
         retval = self.clock.run()
+        stop_time = time.time()
         self.device_handler.stop()
         self.interrupt_handler.stop()
-        stop_time = time.time()
         self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
             self.clock.step_count,
             round(stop_time - start_time, 2),
