@@ -291,7 +291,7 @@ class PRINT(Instruction):
     operand_count = 1
 
     def do(self):
-        self.cpu.log.log('print', aux.word_to_str(self.get_operand(0)))
+        self.cpu.user_log.log('print', aux.word_to_str(self.get_operand(0)))
 
 
 class PRINTCHAR(Instruction):
@@ -300,7 +300,7 @@ class PRINTCHAR(Instruction):
     operand_count = 1
 
     def do(self):
-        self.cpu.log.log('print', chr(self.get_operand(0)))
+        self.cpu.user_log.log('print', chr(self.get_operand(0)))
 
 
 class MOV(Instruction):
@@ -556,13 +556,11 @@ class IN(Instruction):
     def do(self):
         ioport_number = self.get_operand(0)
         pos = self.get_operand(1)
-        input_data = self.cpu.device_handler.ioports[ioport_number].input_buffer
+        input_data = self.cpu.device_controller.ioports[ioport_number].read_input()
         for idx, value in enumerate(input_data):
             self.cpu.ram.write_byte(pos + idx, ord(value))
         self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
         self.cpu.set_register('CX', len(input_data))
-        self.cpu.device_handler.ioports[ioport_number].input_buffer = ''
-        self.cpu.device_handler.ioports[ioport_number].send_ack()
 
 
 class OUT(Instruction):
@@ -574,9 +572,8 @@ class OUT(Instruction):
         ioport_number = self.get_operand(0)
         pos = self.get_operand(1)
         cx = self.cpu.get_register('CX')
-        self.cpu.device_handler.ioports[ioport_number].output_buffer = ''.join([
+        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(''.join([
             chr(self.cpu.ram.read_byte(pos + idx)) for idx in xrange(cx)
-        ])
-        self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(self.cpu.device_handler.ioports[ioport_number].output_buffer), cx))
-        self.cpu.set_register('CX', 0)
-        self.cpu.device_handler.ioports[ioport_number].send_output()
+        ]))
+        self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(output_data), cx))
+        self.cpu.set_register('CX', 0)  # is it required?

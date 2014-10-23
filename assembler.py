@@ -1,26 +1,11 @@
+#!/usr/bin/env python
+
 import ast
 import sys
 
 import aux
 import errors
 import instructions
-
-
-class MockCPU(aux.Hardware):
-
-    def __init__(self, log=None):
-        aux.Hardware.__init__(self, log)
-        self.system_addresses = {
-            'entry_point': 0,
-            'SP': 0,
-        }
-        self.ram = None
-        self.interrupt_queue = None
-        self.registers = {
-            'IP': self.system_addresses['entry_point'],
-            'SP': self.system_addresses['SP'],
-            'AX': 0,
-        }
 
 
 class Assembler(aux.Hardware):
@@ -81,7 +66,6 @@ class Assembler(aux.Hardware):
         self.log.log('assembler', 'Assembling...')
         labels = {}
         program = []
-        mock_cpu = MockCPU()
 
         self.log.log('assembler', 'Collecting labels...')
         for linenum, label, code in self.get_lines():

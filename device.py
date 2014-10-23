@@ -5,18 +5,18 @@ from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 
 import aux
-import device_handler
+import device_controller
 
 
 class Device(aux.Hardware):
 
     def __init__(self, aldebaran_address, ioport_number, device_descriptor, device_address, log=None):
         aux.Hardware.__init__(self, log)
-        self.aldebaran_host, self.aldebaran_device_handler_port = aldebaran_address
+        self.aldebaran_host, self.aldebaran_device_controller_port = aldebaran_address
         self.ioport_number = ioport_number
         self.device_type, self.device_id = device_descriptor
         self.device_host, self.device_port = device_address
-        self.aldebaran_url = 'http://%s:%s/%s' % (self.aldebaran_host, self.aldebaran_device_handler_port, self.ioport_number)
+        self.aldebaran_url = 'http://%s:%s/%s' % (self.aldebaran_host, self.aldebaran_device_controller_port, self.ioport_number)
         self.log.log('device', 'Initialized.')
 
     def _send_request(self, command, data=None):
@@ -33,7 +33,7 @@ class Device(aux.Hardware):
     def register(self):
         self.log.log('device', 'Registering...')
         try:
-            r = self._send_request(device_handler.COMMAND_REGISTER, struct.pack(
+            r = self._send_request(device_controller.COMMAND_REGISTER, struct.pack(
                 'BBBB255pH',
                 self.device_type,
                 self.device_id >> 16, (self.device_id >> 8) & 0xFF, self.device_id & 0xFF,
@@ -53,7 +53,7 @@ class Device(aux.Hardware):
     def unregister(self):
         self.log.log('device', 'Unregistering...')
         try:
-            r = self._send_request(device_handler.COMMAND_UNREGISTER)
+            r = self._send_request(device_controller.COMMAND_UNREGISTER)
         except requests.exceptions.ConnectionError:
             self.log.log('device', 'ERROR: Disconnected from ALD.')
             return 1
@@ -67,7 +67,7 @@ class Device(aux.Hardware):
     def send_data(self, data):
         self.log.log('device', 'Sending data...')
         try:
-            r = self._send_request(device_handler.COMMAND_DATA, data)
+            r = self._send_request(device_controller.COMMAND_DATA, data)
         except requests.exceptions.ConnectionError:
             self.log.log('device', 'ERROR: Disconnected from ALD.')
             return 1

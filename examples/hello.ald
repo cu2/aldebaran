@@ -6,7 +6,7 @@
 LOOP:
         PRINTCHAR [TEXT+CX]B
         ADD CX CX 01
-        JLT CX [TExt_LENGTH]B LOOP
+        JLT CX [TEXT_LENGTH]B LOOP
         SHUTDOWN
 
 # DATA

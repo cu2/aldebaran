@@ -1,14 +1,15 @@
+#!/usr/bin/env python
+
 import datetime
-import Queue
 import sys
 import time
 
 import assembler
 import aux
-import device_handler
+import device_controller
 import errors
 import instructions
-import interrupt_handler
+import interrupt_controller
 
 
 class Aldebaran(aux.Hardware):
@@ -19,14 +20,12 @@ class Aldebaran(aux.Hardware):
         self.cpu = components['cpu']
         self.ram = components['ram']
         self.bios = components['bios']
-        self.interrupt_queue = components['interrupt_queue']
-        self.interrupt_handler = components['interrupt_handler']
-        self.device_handler = components['device_handler']
+        self.interrupt_controller = components['interrupt_controller']
+        self.device_controller = components['device_controller']
         # architecture:
-        self.cpu.register_architecture(self.ram, self.interrupt_queue, self.device_handler)
+        self.cpu.register_architecture(self.ram, self.interrupt_controller, self.device_controller)
         self.clock.register_architecture(self.cpu)
-        self.interrupt_handler.register_architecture(self.interrupt_queue)
-        self.device_handler.register_architecture(self.cpu, self.interrupt_queue, self.ram)
+        self.device_controller.register_architecture(self.cpu.system_interrupts, self.interrupt_controller, self.ram)
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
@@ -42,17 +41,13 @@ class Aldebaran(aux.Hardware):
         retval = self.load_bios()
         if retval != 0:
             return retval
-        retval = self.interrupt_handler.start()
-        if retval != 0:
-            return retval
-        retval = self.device_handler.start()
+        retval = self.device_controller.start()
         if retval != 0:
             return retval
         start_time = time.time()
         retval = self.clock.run()
         stop_time = time.time()
-        self.device_handler.stop()
-        self.interrupt_handler.stop()
+        self.device_controller.stop()
         self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
             self.clock.step_count,
             round(stop_time - start_time, 2),
@@ -102,13 +97,14 @@ class Clock(aux.Hardware):
 
 class CPU(aux.Hardware):
 
-    def __init__(self, system_addresses, system_interrupts, inst_list, log=None):
+    def __init__(self, system_addresses, system_interrupts, inst_list, user_log=None, log=None):
         aux.Hardware.__init__(self, log)
         self.system_addresses = system_addresses
         self.system_interrupts = system_interrupts
         self.inst_list = inst_list
+        self.user_log = user_log
         self.ram = None
-        self.interrupt_queue = None
+        self.interrupt_controller = None
         self.registers = {
             'IP': self.system_addresses['entry_point'],
             'SP': self.system_addresses['SP'],
@@ -127,27 +123,18 @@ class CPU(aux.Hardware):
         self.halt = False
         self.shutdown = False
 
-    def register_architecture(self, ram, interrupt_queue, device_handler):
+    def register_architecture(self, ram, interrupt_controller, device_controller):
         self.ram = ram
-        self.interrupt_queue = interrupt_queue
-        self.device_handler = device_handler
+        self.interrupt_controller = interrupt_controller
+        self.device_controller = device_controller
 
     def step(self):
         if not self.ram:
             self.log.log('cpu', 'ERROR: Cannot run without RAM.')
             return
-        if self.interrupt_queue and self.flags['interrupt']:
-            interrupt_number = None
-            try:
-                interrupt_number = self.interrupt_queue.get_nowait()
-            except Queue.Empty:
-                pass
-            if interrupt_number:
-                try:
-                    interrupt_number = int(interrupt_number)
-                except ValueError:
-                    self.log.log('cpu', 'illegal interrupt: %s' % interrupt_number)
-                    return
+        if self.interrupt_controller and self.flags['interrupt']:
+            interrupt_number = self.interrupt_controller.check()
+            if interrupt_number is not None:
                 self.call_int(interrupt_number)
                 return
         if self.halt:
@@ -323,7 +310,7 @@ class BIOS(aux.Hardware):
 
 
 def main(args):
-    # config:
+    # config
     number_of_ioports = 4  # "physically"
     number_of_devices = 16  # potencially
     ram_size = 0x10000
@@ -347,10 +334,38 @@ def main(args):
     clock_freq = 200  # Hz
     host = 'localhost'
     base_port = 35000
-    interrupt_handler_port = 0
-    device_handler_port = 1
+    device_controller_port = 0
+    # logging
+    minimal_loggers = {
+        'aldebaran': aux.Log(),
+        'clock': None,
+        'cpu': None,
+        'user': aux.Log(),
+        'ram': None,
+        'interrupt_controller': None,
+        'device_controller': None,
+    }
+    normal_loggers = {
+        'aldebaran': aux.Log(),
+        'clock': None,
+        'cpu': aux.Log(),
+        'user': aux.Log(),
+        'ram': None,
+        'interrupt_controller': aux.Log(),
+        'device_controller': aux.Log(),
+    }
+    full_loggers = {
+        'aldebaran': aux.Log(),
+        'clock': aux.Log(),
+        'cpu': aux.Log(),
+        'user': aux.Log(),
+        'ram': aux.Log(),
+        'interrupt_controller': aux.Log(),
+        'device_controller': aux.Log(),
+    }
+    loggers = normal_loggers  # choose verbosity
+    # bios
     inst_list, inst_dict = instructions.get_instruction_set()
-    # load bios
     if len(args):
         start_program_filename = args[0]
     else:
@@ -369,20 +384,19 @@ def main(args):
     })
     # start
     aldebaran = Aldebaran({
-        'clock': Clock(clock_freq),
-        'cpu': CPU(system_addresses, system_interrupts, inst_list, aux.Log()),
-        'ram': RAM(ram_size),
+        'clock': Clock(clock_freq, loggers['clock']),
+        'cpu': CPU(system_addresses, system_interrupts, inst_list, loggers['user'], loggers['cpu']),
+        'ram': RAM(ram_size, loggers['ram']),
         'bios': bios,
-        'interrupt_queue': Queue.Queue(),
-        'interrupt_handler': interrupt_handler.InterruptHandler(host, base_port + interrupt_handler_port, aux.Log()),
-        'device_handler': device_handler.DeviceHandler(
-            host, base_port + device_handler_port,
+        'interrupt_controller': interrupt_controller.InterruptController(loggers['interrupt_controller']),
+        'device_controller': device_controller.DeviceController(
+            host, base_port + device_controller_port,
             system_addresses['device_status_table'],
             system_addresses['device_registry_address'],
-            [device_handler.IOPort(ioport_number, aux.Log()) for ioport_number in xrange(number_of_ioports)],
-            aux.Log(),
+            [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in xrange(number_of_ioports)],
+            loggers['device_controller'],
         ),
-    }, aux.Log())
+    }, loggers['aldebaran'])
     retval = aldebaran.run()
     print ''
     return retval

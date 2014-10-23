@@ -19,16 +19,18 @@ def main(args):
     ioport_number = int(args[0])
     device_port = int(args[1])
     terminal = Terminal(
-        aldebaran_address=('localhost', 35001),
+        aldebaran_address=('localhost', 35000),
         ioport_number=ioport_number,
         device_descriptor=(0x01, 0xABCDEF),
         device_address=('localhost', device_port),
     )
     retval = terminal.start()
     if retval != 0:
+        print 'Could not start terminal'
         return retval
     retval = terminal.register()
     if retval != 0:
+        print 'Could not register terminal'
         return retval
     try:
         while True:
