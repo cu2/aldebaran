@@ -5,6 +5,7 @@ from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 
 import aux
+import config
 import device_controller
 
 
@@ -19,6 +20,7 @@ class Device(aux.Hardware):
     - listen to "ack" and "data" signals from ALD
 
     Specific devices should subclass Device and
+    - override run() to define main loop of device
     - use send_data() for ALD-input
     - override handle_ack() for ack of ALD-input
     - override handle_data() for ALD-output
@@ -62,12 +64,18 @@ class Device(aux.Hardware):
             self.log = log
             self.daemon_threads = True
 
-    def __init__(self, aldebaran_address, ioport_number, device_descriptor, device_address, log=None):
+    def __init__(self, ioport_number, device_descriptor, aldebaran_address=None, device_address=None, log=None):
         aux.Hardware.__init__(self, log)
-        self.aldebaran_host, self.aldebaran_device_controller_port = aldebaran_address
         self.ioport_number = ioport_number
         self.device_type, self.device_id = device_descriptor
-        self.device_host, self.device_port = device_address
+        if aldebaran_address is None:
+            self.aldebaran_host, self.aldebaran_device_controller_port = config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port
+        else:
+            self.aldebaran_host, self.aldebaran_device_controller_port = aldebaran_address
+        if device_address is None:
+            self.device_host, self.device_port = config.device_host, config.device_base_port + ioport_number
+        else:
+            self.device_host, self.device_port = device_address
         self.aldebaran_url = 'http://%s:%s/%s' % (self.aldebaran_host, self.aldebaran_device_controller_port, self.ioport_number)
         self.log.log('device', 'Initialized.')
 
@@ -159,3 +167,6 @@ class Device(aux.Hardware):
     def handle_data(self, data):
         self.log.log('device', 'Data from ALD: %s' % data)
         return 200, 'Ok\n'
+
+    def run(self, args):
+        pass

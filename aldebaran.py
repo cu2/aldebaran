@@ -6,6 +6,7 @@ import time
 
 import assembler
 import aux
+import config
 import device_controller
 import errors
 import instructions
@@ -310,31 +311,6 @@ class BIOS(aux.Hardware):
 
 
 def main(args):
-    # config
-    number_of_ioports = 4  # "physically"
-    number_of_devices = 16  # potencially
-    ram_size = 0x10000
-    number_of_interrupts = 256
-    IVT_size = number_of_interrupts * 2
-    device_registry_size = number_of_devices * 4
-    system_interrupts = {
-        'device_registered': 30,
-        'device_unregistered': 31,
-        'ioport_in': [32 + ioport_number for ioport_number in xrange(number_of_ioports)],
-        'ioport_out': [48 + ioport_number for ioport_number in xrange(number_of_ioports)],
-    }
-    system_addresses = {
-        'entry_point': 0x0000,
-        'SP': ram_size - IVT_size - device_registry_size - number_of_devices - 1 - 1,
-        'default_interrupt_handler': ram_size - IVT_size - device_registry_size - number_of_devices - 1,
-        'device_status_table': ram_size - IVT_size - device_registry_size - number_of_devices,
-        'device_registry_address': ram_size - IVT_size - device_registry_size,
-        'IVT': ram_size - IVT_size,
-    }
-    clock_freq = 200  # Hz
-    host = 'localhost'
-    base_port = 35000
-    device_controller_port = 0
     # logging
     minimal_loggers = {
         'aldebaran': aux.Log(),
@@ -373,27 +349,27 @@ def main(args):
     try:
         asm = assembler.Assembler(inst_dict)
         asm.load_file(start_program_filename)
-        start_program = asm.assemble(system_addresses['entry_point'])
+        start_program = asm.assemble(config.system_addresses['entry_point'])
     except errors.UnknownInstructionError as e:
         print 'errors.UnknownInstructionError: %s' % e
         return 1
     bios = BIOS({
-        'start': (system_addresses['entry_point'], start_program),
-        'default_interrupt_handler': (system_addresses['default_interrupt_handler'], [inst_dict['IRET']]),
-        'IVT': (system_addresses['IVT'], list(aux.word_to_bytes(system_addresses['default_interrupt_handler'])) * number_of_interrupts),
+        'start': (config.system_addresses['entry_point'], start_program),
+        'default_interrupt_handler': (config.system_addresses['default_interrupt_handler'], [inst_dict['IRET']]),
+        'IVT': (config.system_addresses['IVT'], list(aux.word_to_bytes(config.system_addresses['default_interrupt_handler'])) * config.number_of_interrupts),
     })
     # start
     aldebaran = Aldebaran({
-        'clock': Clock(clock_freq, loggers['clock']),
-        'cpu': CPU(system_addresses, system_interrupts, inst_list, loggers['user'], loggers['cpu']),
-        'ram': RAM(ram_size, loggers['ram']),
+        'clock': Clock(config.clock_freq, loggers['clock']),
+        'cpu': CPU(config.system_addresses, config.system_interrupts, inst_list, loggers['user'], loggers['cpu']),
+        'ram': RAM(config.ram_size, loggers['ram']),
         'bios': bios,
         'interrupt_controller': interrupt_controller.InterruptController(loggers['interrupt_controller']),
         'device_controller': device_controller.DeviceController(
-            host, base_port + device_controller_port,
-            system_addresses['device_status_table'],
-            system_addresses['device_registry_address'],
-            [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in xrange(number_of_ioports)],
+            config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
+            config.system_addresses['device_status_table'],
+            config.system_addresses['device_registry_address'],
+            [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in xrange(config.number_of_ioports)],
             loggers['device_controller'],
         ),
     }, loggers['aldebaran'])
