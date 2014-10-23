@@ -3,6 +3,7 @@
 import datetime
 import sys
 import time
+import traceback
 
 import assembler
 import aux
@@ -52,7 +53,12 @@ class Aldebaran(aux.Hardware):
         if retval != 0:
             return retval
         start_time = time.time()
-        retval = self.clock.run()
+        try:
+            retval = self.clock.run()
+        except Exception:
+            tb = traceback.format_exc()
+            self.log.log('aldebaran', 'EXCEPTION: %s' % tb)
+            retval = 1
         stop_time = time.time()
         self.timer.stop()
         self.device_controller.stop()
