@@ -7,19 +7,64 @@ The specs are partly (from a large distance) based on the IBM PC XT. In spite of
 The project is under heavy construction...
 
 
+
 ## Architecture
 
 ![Architecture](images/aldebaran_architecture.png)
 
+
 ### Clock
+
+The clock sends the CPU a beat every `1/clock frequency` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller then the theoretical. If `clock frequency` is zero ("TURBO" mode), the clock sends beats as fast as possible.
+
 
 ### RAM
 
+A simple RAM module with 65536 bytes of storage. Capable of reading and writing bytes or words. The stack is stored in the RAM but it's implemented by the CPU.
+
+
 ### CPU
+
+For every clock beat the CPU:
+
+- checks if there's a hardware interrupt (coming from the Interrupt Controller)
+- if yes, it calls the specified interrupt handler routine (based on the Interrupt Vector Table)
+- if no, it executes the instruction at the Instruction Pointer (`IP`) and sets the `IP` to the next instruction
+
+The CPU has the following registers:
+
+- 4 generic 16-bit registers: `AX`, `BX`, `CX`, `DX` (with separate lower and upper parts)
+- `IP`: Instruction Pointer for control flow
+- `SP`: Stack Pointer for stack operations
+- `BP`: Base Pointer for either using as a frame pointer in the call stack or for generic usage
+- `SI`, `DI`: Source and Destination Index registers for either string operations or for generic usage
+- Interrupt Flag: to enable and disable hardware interrupts
+
 
 ### Interrupt Controller
 
+The Interrupt Controller accepts hardware interrupts from the Device Controller (or other not yet implemented internal devices) and puts them into a FIFO queue. The CPU can take interrupts out of the queue and handle them.
+
+Interrupt numbers (00-FF) are mapped to interrupt handler routines based on the Interrupt Vector Table (a 256 times 2 bytes part of the RAM). Interrupt numbers are the following:
+
+- 00-1F: system interrupts
+    - 1E: device_registered (called when a device is registered)
+    - 1F: device_unregistered (called when a device is unregistered)
+- 20-2F: ioport_in (called when a device sends data to an IOPort)
+- 30-3F: ioport_out (called after data is sent to a device and the device responds a status)
+- 40-FF: free interrupts
+
+
 ### Device Controller and IOPorts
+
+The Device Controller contains 4 (potentially 16) IOPorts each capable of communicating with a separate device. When a new device is connected, first it's registered with an IOPort and into the so called Device Registry.
+
+The Device Registry is a part of the RAM. For each IOPort it has 4 bytes:
+
+- 1 byte Device Type (00 if no device is registered)
+- 3 bytes Device ID (000000 if no device is registered)
+
+Another part of the RAM is the Device Status Table. For each IOPort it has 1 byte that is the status of the last `OUT` instruction. 0 if it was successful, 1 otherwise.
 
 #### Input scenario
 
@@ -50,10 +95,9 @@ The project is under heavy construction...
 6. Device Controller responds to the device
 
 
+
 ## Programming
 
 ### Opcode structure
 
 ### Instruction set
-
-
