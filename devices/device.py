@@ -9,6 +9,58 @@ import device_controller
 
 
 class Device(aux.Hardware):
+    '''
+    Generic device class
+
+    Can:
+    - register
+    - unregister
+    - send data to ALD
+    - listen to "ack" and "data" signals from ALD
+
+    Specific devices should subclass Device and
+    - use send_data() for ALD-input
+    - override handle_ack() for ack of ALD-input
+    - override handle_data() for ALD-output
+    '''
+
+    class RequestHandler(BaseHTTPRequestHandler):
+
+        def do_POST(self):
+            command = self.path.lstrip('/')
+            self.server.log.log('device', 'Req: %s' % command)
+            try:
+                request_body_length = int(self.headers.getheader('content-length'))
+            except TypeError:
+                self.send_response(411)  # Length Required
+                self.end_headers()
+                self.wfile.write('ERROR: Header "content-length" missing.')
+                self.wfile.write('\n')
+                return
+            try:
+                request_body = self.rfile.read(request_body_length)
+            except Exception:
+                self.send_response(400)  # Bad Request
+                self.end_headers()
+                self.wfile.write('ERROR: Cannot parse request.')
+                self.wfile.write('\n')
+                return
+            self.server.log.log('device', 'Request(%s): %s' % (request_body_length, request_body))
+            response_code, response = self.server.device.handle_input(command, request_body)
+            self.send_response(response_code)
+            self.end_headers()
+            self.wfile.write(response)
+
+        def log_message(self, format, *args):
+            return
+
+    class Server(ThreadingMixIn, HTTPServer):
+
+        def __init__(self, server_address, request_handler, device, log):
+            HTTPServer.__init__(self, server_address, request_handler)
+            self.device = device
+            self.log = log
+            self.daemon_threads = True
 
     def __init__(self, aldebaran_address, ioport_number, device_descriptor, device_address, log=None):
         aux.Hardware.__init__(self, log)
@@ -78,47 +130,6 @@ class Device(aux.Hardware):
         self.log.log('device', 'Data sent.')
         return 0
 
-
-class OutputDevice(Device):
-
-    class RequestHandler(BaseHTTPRequestHandler):
-
-        def do_POST(self):
-            command = self.path.lstrip('/')
-            self.server.log.log('device', 'Req: %s' % command)
-            try:
-                request_body_length = int(self.headers.getheader('content-length'))
-            except TypeError:
-                self.send_response(411)  # Length Required
-                self.end_headers()
-                self.wfile.write('ERROR: Header "content-length" missing.')
-                self.wfile.write('\n')
-                return
-            try:
-                request_body = self.rfile.read(request_body_length)
-            except Exception:
-                self.send_response(400)  # Bad Request
-                self.end_headers()
-                self.wfile.write('ERROR: Cannot parse request.')
-                self.wfile.write('\n')
-                return
-            self.server.log.log('device', 'Request(%s): %s' % (request_body_length, request_body))
-            response_code, response = self.server.device.handle_input(command, request_body)
-            self.send_response(response_code)
-            self.end_headers()
-            self.wfile.write(response)
-
-        def log_message(self, format, *args):
-            return
-
-    class Server(ThreadingMixIn, HTTPServer):
-
-        def __init__(self, server_address, request_handler, device, log):
-            HTTPServer.__init__(self, server_address, request_handler)
-            self.device = device
-            self.log = log
-            self.daemon_threads = True
-
     def start(self):
         self.log.log('device', 'Starting...')
         self.server = self.Server((self.device_host, self.device_port), self.RequestHandler, self, self.log)
@@ -134,4 +145,17 @@ class OutputDevice(Device):
         self.log.log('device', 'Stopped.')
 
     def handle_input(self, command, data):
+        if command == 'ack':
+            return self.handle_ack()
+        if command == 'data':
+            return self.handle_data(data)
+        self.log.log('device', 'ERROR: unknown command %s.' % command)
+        return 400, 'Unknown command\n'
+
+    def handle_ack(self):
+        self.log.log('device', 'Acknowledged by ALD.')
+        return 200, 'Ok\n'
+
+    def handle_data(self, data):
+        self.log.log('device', 'Data from ALD: %s' % data)
         return 200, 'Ok\n'

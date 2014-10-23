@@ -2,19 +2,16 @@ import device
 import sys
 
 
-class Terminal(device.OutputDevice):
+class Terminal(device.Device):
 
-    def handle_input(self, command, data):
-        # if command == 'ack':
-        #     print 'Acknowledged.'
-        if command == 'data':
-            print '\033[0;36m%s\033[0m' % data
+    def handle_data(self, data):
+        print '\033[0;36m%s\033[0m' % data
         return 200, 'Ok\n'
 
 
 def main(args):
     if len(args) < 2:
-        print 'Usage: python terminal.py <ioport_number> <device_port>'
+        print 'Usage: ./run_device.py terminal <ioport_number> <device_port>'
         return 1
     ioport_number = int(args[0])
     device_port = int(args[1])
@@ -47,7 +44,3 @@ def main(args):
     if retval != 0:
         return retval
     return 0
-
-
-if __name__ == '__main__':
-    main(sys.argv[1:])
