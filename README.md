@@ -97,13 +97,13 @@ Another part of the RAM is the Device Status Table. For each IOPort it has 1 byt
 
 ### Timer
 
-Timer is an internal device (i.e. it's not controlled by the Device Controller but directly by the CPU). It runs on a preset frequency (`timer_freq`) independently from the clock and increases a step counter (`step_count`) at every beat. It has 8 subtimers the can be programmed separately with the `SETTMR` instruction.
+Timer is an internal device (i.e. it's not controlled by the Device Controller but directly by the CPU). It runs on a preset frequency (`timer_freq`) independently from the clock and increases a step counter (`step_count`) at every beat. It has 8 subtimers that can be programmed separately with the `SETTMR` instruction.
 
 A subtimer can be in 3 modes:
 
 - `OFF` (`00`): the subtimer does nothing
-- `ONESHOT` (`01`): the subtimer waits until `step_count mod speed = phase`, then it calls a specified interrupt and switches to `OFF` mode
-- `PERIODIC` (`02`): the subtimer waits until `step_count mod speed = phase`, then it calls a specified interrupt and waits again
+- `ONESHOT` (`01`): the subtimer waits until `step_count % speed = phase`, then it calls a specified interrupt and switches to `OFF` mode
+- `PERIODIC` (`02`): the subtimer waits until `step_count % speed = phase`, then it calls a specified interrupt and waits again
 
 If `speed` is zero, a `ONESHOT` subtimer calls the interrupt at the next beat of the Timer, a `PERIODIC` calls at every beat. In this case `phase` has no meaning. Otherwise `phase` should be between `0` and `speed-1`.
 
