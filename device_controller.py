@@ -120,20 +120,19 @@ class DeviceController(aux.Hardware):
             self.log = log
             self.daemon_threads = True
 
-    def __init__(self, host, port, device_status_table, device_registry_address, ioports, log=None):
+    def __init__(self, host, port, system_addresses, system_interrupts, ioports, log=None):
         aux.Hardware.__init__(self, log)
         self.address = (host, port)
-        self.device_status_table = device_status_table
-        self.device_registry_address = device_registry_address
+        self.device_status_table = system_addresses['device_status_table']
+        self.device_registry_address = system_addresses['device_registry_address']
         self.ioports = ioports
-        self.system_interrupts = None
-        self.interrupt_controller = None
+        self.system_interrupts = system_interrupts
         self.output_queue = Queue.Queue()
+        self.interrupt_controller = None
         self.ram = None
         self.architecture_registered = False
 
-    def register_architecture(self, system_interrupts, interrupt_controller, ram):
-        self.system_interrupts = system_interrupts
+    def register_architecture(self, interrupt_controller, ram):
         self.interrupt_controller = interrupt_controller
         self.ram = ram
         for ioport in self.ioports:

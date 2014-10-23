@@ -1,0 +1,18 @@
+# Demo for Timer unit
+
+
+MAIN:
+        SETINT 80 TIMER_HANDLER_1
+        SETTMR 00 02 000A 0000 80  # subtimer, mode, speed, phase, irq
+        SETINT 81 TIMER_HANDLER_2
+        SETTMR 01 02 000A 0005 81
+        HALT
+
+
+TIMER_HANDLER_1:
+        PRINTCHAR 53  # S
+        IRET
+
+TIMER_HANDLER_2:
+        PRINTCHAR 54  # T
+        IRET

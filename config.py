@@ -17,10 +17,10 @@ number_of_interrupts = 256
 IVT_size = number_of_interrupts * 2
 device_registry_size = number_of_devices * 4
 system_interrupts = {
-    'device_registered': 30,
-    'device_unregistered': 31,
-    'ioport_in': [32 + ioport_number for ioport_number in xrange(number_of_ioports)],
-    'ioport_out': [48 + ioport_number for ioport_number in xrange(number_of_ioports)],
+    'device_registered': 0x1E,
+    'device_unregistered': 0x1F,
+    'ioport_in': [0x20 + ioport_number for ioport_number in xrange(number_of_ioports)],
+    'ioport_out': [0x30 + ioport_number for ioport_number in xrange(number_of_ioports)],
 }
 system_addresses = {
     'entry_point': 0x0000,
@@ -31,3 +31,4 @@ system_addresses = {
     'IVT': ram_size - IVT_size,
 }
 clock_freq = 200  # Hz
+timer_freq = 10  # Hz

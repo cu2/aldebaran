@@ -577,3 +577,19 @@ class OUT(Instruction):
         ]))
         self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(output_data), cx))
         self.cpu.set_register('CX', 0)  # is it required?
+
+
+class SETTMR(Instruction):
+    '''Set subtimer of Timer'''
+
+    operand_count = 5
+
+    def do(self):
+        subtimer_number = self.get_operand(0)
+        self.cpu.timer.set_subtimer(subtimer_number, {
+            'mode': self.get_operand(1),
+            'speed': self.get_operand(2),
+            'phase': self.get_operand(3),
+            'interrupt_number': self.get_operand(4),
+        })
+        self.cpu.log.log('cpu', 'Subtimer %s set.' % aux.byte_to_str(subtimer_number))

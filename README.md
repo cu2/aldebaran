@@ -15,7 +15,7 @@ The project is under heavy construction...
 
 ### Clock
 
-The clock sends the CPU a beat every `1/clock frequency` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller then the theoretical. If `clock frequency` is zero ("TURBO" mode), the clock sends beats as fast as possible.
+The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller then the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
 
 
 ### RAM
@@ -27,7 +27,7 @@ A simple RAM module with 65536 bytes of storage. Capable of reading and writing 
 
 For every clock beat the CPU:
 
-- checks if there's a hardware interrupt (coming from the Interrupt Controller)
+- checks if there's a hardware interrupt coming from the Interrupt Controller (only if the Interrupt Flag is set)
 - if yes, it calls the specified interrupt handler routine (based on the Interrupt Vector Table)
 - if no, it executes the instruction at the Instruction Pointer (`IP`) and sets the `IP` to the next instruction
 
@@ -94,6 +94,18 @@ Another part of the RAM is the Device Status Table. For each IOPort it has 1 byt
 5. CPU calls the specified interrupt handler routine
 6. Device Controller responds to the device
 
+
+### Timer
+
+Timer is an internal device (i.e. it's not controlled by the Device Controller but directly by the CPU). It runs on a preset frequency (`timer_freq`) independently from the clock and increases a step counter (`step_count`) at every beat. It has 8 subtimers the can be programmed separately with the `SETTMR` instruction.
+
+A subtimer can be in 3 modes:
+
+- `OFF` (`00`): the subtimer does nothing
+- `ONESHOT` (`01`): the subtimer waits until `step_count mod speed = phase`, then it calls a specified interrupt and switches to `OFF` mode
+- `PERIODIC` (`02`): the subtimer waits until `step_count mod speed = phase`, then it calls a specified interrupt and waits again
+
+If `speed` is zero, a `ONESHOT` subtimer calls the interrupt at the next beat of the Timer, a `PERIODIC` calls at every beat. In this case `phase` has no meaning. Otherwise `phase` should be between `0` and `speed-1`.
 
 
 ## Programming

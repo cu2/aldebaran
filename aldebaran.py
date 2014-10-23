@@ -11,6 +11,7 @@ import device_controller
 import errors
 import instructions
 import interrupt_controller
+import timer
 
 
 class Aldebaran(aux.Hardware):
@@ -23,10 +24,12 @@ class Aldebaran(aux.Hardware):
         self.bios = components['bios']
         self.interrupt_controller = components['interrupt_controller']
         self.device_controller = components['device_controller']
+        self.timer = components['timer']
         # architecture:
-        self.cpu.register_architecture(self.ram, self.interrupt_controller, self.device_controller)
+        self.cpu.register_architecture(self.ram, self.interrupt_controller, self.device_controller, self.timer)
         self.clock.register_architecture(self.cpu)
-        self.device_controller.register_architecture(self.cpu.system_interrupts, self.interrupt_controller, self.ram)
+        self.device_controller.register_architecture(self.interrupt_controller, self.ram)
+        self.timer.register_architecture(self.interrupt_controller)
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
@@ -45,9 +48,13 @@ class Aldebaran(aux.Hardware):
         retval = self.device_controller.start()
         if retval != 0:
             return retval
+        retval = self.timer.start()
+        if retval != 0:
+            return retval
         start_time = time.time()
         retval = self.clock.run()
         stop_time = time.time()
+        self.timer.stop()
         self.device_controller.stop()
         self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
             self.clock.step_count,
@@ -106,6 +113,7 @@ class CPU(aux.Hardware):
         self.user_log = user_log
         self.ram = None
         self.interrupt_controller = None
+        self.timer = None
         self.registers = {
             'IP': self.system_addresses['entry_point'],
             'SP': self.system_addresses['SP'],
@@ -124,10 +132,11 @@ class CPU(aux.Hardware):
         self.halt = False
         self.shutdown = False
 
-    def register_architecture(self, ram, interrupt_controller, device_controller):
+    def register_architecture(self, ram, interrupt_controller, device_controller, timer):
         self.ram = ram
         self.interrupt_controller = interrupt_controller
         self.device_controller = device_controller
+        self.timer = timer
 
     def step(self):
         if not self.ram:
@@ -320,6 +329,7 @@ def main(args):
         'ram': None,
         'interrupt_controller': None,
         'device_controller': None,
+        'timer': None,
     }
     normal_loggers = {
         'aldebaran': aux.Log(),
@@ -329,6 +339,7 @@ def main(args):
         'ram': None,
         'interrupt_controller': aux.Log(),
         'device_controller': aux.Log(),
+        'timer': None,
     }
     full_loggers = {
         'aldebaran': aux.Log(),
@@ -338,6 +349,7 @@ def main(args):
         'ram': aux.Log(),
         'interrupt_controller': aux.Log(),
         'device_controller': aux.Log(),
+        'timer': aux.Log(),
     }
     loggers = normal_loggers  # choose verbosity
     # bios
@@ -367,11 +379,11 @@ def main(args):
         'interrupt_controller': interrupt_controller.InterruptController(loggers['interrupt_controller']),
         'device_controller': device_controller.DeviceController(
             config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
-            config.system_addresses['device_status_table'],
-            config.system_addresses['device_registry_address'],
+            config.system_addresses, config.system_interrupts,
             [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in xrange(config.number_of_ioports)],
             loggers['device_controller'],
         ),
+        'timer': timer.Timer(config.timer_freq, loggers['timer']),
     }, loggers['aldebaran'])
     retval = aldebaran.run()
     print ''
