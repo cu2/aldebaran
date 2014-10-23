@@ -1,3 +1,4 @@
 *.pyc
 /_stuff
 *.log
+.DS_Store
