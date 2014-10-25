@@ -8,7 +8,7 @@ OPLEN_WORD = 1
 OPTYPE_IMMEDIATE = 0        # dd, dddd      e.g. labels, interrupts, IO
 OPTYPE_REGISTER = 1         # AX            e.g. temporary variables
 OPTYPE_MEM_WORD = 2         # [dddd]        e.g. global variables
-OPTYPE_MEM_REG_BYTE = 3     # [AX+dd]       e.g. params (BP+), local variables (SP+), structs with address in reg
+OPTYPE_MEM_REG_BYTE = 3     # [AX+dd]       e.g. params (BP+), local variables (BP-), structs with address in reg
 OPTYPE_MEM_WORD_REG = 4     # [dddd+AX]     e.g. arrays (address = global variable)
 OPTYPE_MEM_WORD_BYTE = 5    # [dddd+dd]     e.g. structs (address = global variable)
 
@@ -92,13 +92,23 @@ def encode_argument(arg):
         else:
             oplen = OPLEN_WORD
         arg = arg[1:-2]
+    # OPTYPE_MEM_REG_BYTE (NEGATIVE)
+    if '-' in arg:
+        arg1, arg2 = arg.split('-')
+        if arg1 in WORD_REGISTERS:
+            return [
+                (oplen << 7) + (OPTYPE_MEM_REG_BYTE << 4) + get_register_code(arg1),
+                -aux.str_to_int(arg2) & 0xFF,
+            ]
+        else:
+            raise errors.InvalidArgumentError(arg)
     # OPTYPE_MEM_WORD
     if '+' not in arg:
         return [
             (oplen << 7) + (OPTYPE_MEM_WORD << 4),
         ] + list(aux.word_to_bytes(aux.str_to_int(arg)))
     arg1, arg2 = arg.split('+')
-    # OPTYPE_MEM_REG_BYTE
+    # OPTYPE_MEM_REG_BYTE (POSITIVE)
     if arg1 in WORD_REGISTERS:
         return [
             (oplen << 7) + (OPTYPE_MEM_REG_BYTE << 4) + get_register_code(arg1),
@@ -201,9 +211,9 @@ class Instruction(object):
                 return self.cpu.ram.read_byte(oprest[0])
         if optype == OPTYPE_MEM_REG_BYTE:
             if oplen == OPLEN_WORD:
-                return self.cpu.ram.read_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1])
+                return self.cpu.ram.read_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + aux.byte_to_signed(oprest[1]))
             else:
-                return self.cpu.ram.read_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1])
+                return self.cpu.ram.read_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + aux.byte_to_signed(oprest[1]))
         if optype == OPTYPE_MEM_WORD_REG:
             if oplen == OPLEN_WORD:
                 return self.cpu.ram.read_word(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])))
@@ -230,9 +240,9 @@ class Instruction(object):
                 self.cpu.ram.write_byte(oprest[0], value)
         elif optype == OPTYPE_MEM_REG_BYTE:
             if oplen == OPLEN_WORD:
-                self.cpu.ram.write_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1], value)
+                self.cpu.ram.write_word(self.cpu.get_register(get_register_name_by_code(oprest[0])) + aux.byte_to_signed(oprest[1]), value)
             else:
-                self.cpu.ram.write_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + oprest[1], value)
+                self.cpu.ram.write_byte(self.cpu.get_register(get_register_name_by_code(oprest[0])) + aux.byte_to_signed(oprest[1]), value)
         elif optype == OPTYPE_MEM_WORD_REG:
             if oplen == OPLEN_WORD:
                 self.cpu.ram.write_word(oprest[0] + self.cpu.get_register(get_register_name_by_code(oprest[1])), value)
@@ -501,6 +511,36 @@ class RET(Instruction):
 
     def do(self):
         return self.cpu.stack_pop_word()
+
+
+class ENTER(Instruction):
+    '''Enter subroutine: set frame pointer and allocate <op0> bytes on stack for local variables'''
+
+    operand_count = 1
+
+    def do(self):
+        self.cpu.stack_push_word(self.cpu.get_register('BP'))
+        self.cpu.set_register('BP', self.cpu.get_register('SP'))
+        self.cpu.set_register('SP', self.cpu.get_register('SP') - self.get_operand(0))
+
+
+class LEAVE(Instruction):
+    '''Leave subroutine: free stack allocated for local variables'''
+
+    def do(self):
+        self.cpu.set_register('SP', self.cpu.get_register('BP'))
+        self.cpu.set_register('BP', self.cpu.stack_pop_word())
+
+
+class RETPOP(Instruction):
+    '''Return from subroutine and pop <op0> bytes'''
+
+    operand_count = 1
+
+    def do(self):
+        next_ip = self.cpu.stack_pop_word()
+        self.cpu.set_register('SP', self.cpu.get_register('SP') + self.get_operand(0))
+        return next_ip
 
 
 class INT(Instruction):

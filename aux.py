@@ -109,3 +109,11 @@ def set_low(word, value):
 
 def set_high(word, value):
     return (word & 0x00FF) + (value << 8)
+
+
+def byte_to_signed(byte):
+    if byte < 0 or byte > 255:
+        raise errors.ByteOutOfRangeError(hex(byte))
+    if byte > 127:
+        return byte - 256
+    return byte
