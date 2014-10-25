@@ -3,34 +3,43 @@
 
 
 MAIN:
-        MOV BP SP  # bottom frame pointer for debugging
+        MOV AX 1357  # for testing
 
-        DEC SP 0002  # place for retval
-        PUSH PARAM1
-        PUSH PARAM2
+        # retval = SUB(param1, param2)
+        DEC SP 02  # 2 bytes for retval
+        PUSH [PARAM1]
+        PUSH [PARAM2]
         CALL SUB
-        INC SP 0004  # discards params
         POP [RETVAL]
 
-        HALT
+        PRINT [RETVAL]  # is it BCDE?
+        PRINT AX  # is it still 1357?
+
+        SHUTDOWN
 
 
 SUB:
         # sub prologue:
-        PUSH BP
-        MOV BP SP
-        PUSH AX  # save regs
-        DEC SP 0006  # allocate local vars
+        ENTER 06  # 6 bytes for local vars
+        PUSH AX
 
         # sub main:
-        # [BP+...] params and retval
-        # [SP+...] local vars
+        MOV AX 0000
+        PRINT [BP+05]  # param2
+        PRINT [BP+07]  # param1
+        PRINT [BP+09]  # retval
+        MOV [BP-01] 2345  # var1 = 2345
+        MOV [BP-03] 6789  # var2 = 6789
+        MOV [BP-05] BCDE  # var3 = BCDE
+        PRINT [BP-01]  # var1
+        PRINT [BP-03]  # var2
+        PRINT [BP-05]  # var3
+        MOV [BP+09] [BP-05]  # retval = var3
 
         # sub epilogue:
-        INC SP 0006  # discard local vars
-        POP AX  # restore regs
-        POP BP
-        RET
+        POP AX
+        LEAVE
+        RETPOP 04  # 4 bytes for params
 
 
 PARAM1: DAT ABCD

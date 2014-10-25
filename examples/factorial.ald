@@ -9,11 +9,12 @@ START:
         MOV [COUNTER] 0000
 
 LOOP:
-        DEC SP 0002  # place for retval
-        PUSH [COUNTER]  # param
+        # AX = FACT([COUNTER]):
+        DEC SP 0002
+        PUSH [COUNTER]
         CALL FACT
-        INC SP 0002  # discard param
-        POP AX  # retval
+        POP AX
+
         PRINT [COUNTER]
         PRINTCHAR 21  # !
         PRINTCHAR 3D  # =
@@ -28,30 +29,30 @@ LOOP:
 
 # SUB FACT (param): retval
 FACT:
-
         # SUB PROLOGUE:
-        PUSH BP
-        MOV BP SP
+        ENTER 00
         PUSH AX  # save regs
 
         # SUBMAIN:
         JNZ [BP+05] NONZERO  # param == 0?
-        MOV [BP+07] 0001  # retval
+        MOV [BP+07] 0001  # retval = 1
         JUMP EPILOGUE
 
 NONZERO:
         SUB AX [BP+05] 0001  # AX = param - 1
-        DEC SP 0002  # place for retval
-        PUSH AX  # param-1
+
+        # AX = FACT(AX) = FACT(param - 1)
+        DEC SP 0002
+        PUSH AX
         CALL FACT
-        INC SP 0002
-        POP AX  # AX = fact(param-1)
-        MUL [BP+07] [BP+05] AX  # retval = param * fact(param-1)
+        POP AX
+
+        MUL [BP+07] [BP+05] AX  # retval = param * FACT(param - 1)
 
 EPILOGUE:
         POP AX  # restore regs
-        POP BP
-        RET
+        LEAVE
+        RETPOP 02
 
 # ENDSUB FACT
 
