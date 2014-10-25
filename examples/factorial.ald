@@ -22,7 +22,7 @@ LOOP:
         PRINTCHAR 20  # ' '
         INC [COUNTER] 0001
         JLE [COUNTER] [MAX_CNT] LOOP
-        JUMP START
+        JMP START
 
 # END MAIN
 
@@ -36,7 +36,7 @@ FACT:
         # SUBMAIN:
         JNZ [BP+05] NONZERO  # param == 0?
         MOV [BP+07] 0001  # retval = 1
-        JUMP EPILOGUE
+        JMP EPILOGUE
 
 NONZERO:
         SUB AX [BP+05] 0001  # AX = param - 1

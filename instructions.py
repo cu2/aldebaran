@@ -272,49 +272,19 @@ class Instruction(object):
         pass
 
 
-class NOP(Instruction):
-    '''No operation'''
-    pass
 
 
-class HALT(Instruction):
-    '''Halt CPU'''
-
-    def do(self):
-        self.cpu.halt = True
-        self.cpu.log.log('cpu', 'Halted')
-        return self.ip
+######################################## INSTRUCTION SET ########################################
 
 
-class SHUTDOWN(Instruction):
-    '''Shut down Aldebaran'''
-
-    def do(self):
-        self.cpu.shutdown = True
-        self.cpu.log.log('cpu', 'Shut down')
-        return self.ip
 
 
-class PRINT(Instruction):
-    '''Print int to CPU log'''
+################################################################################ DATA TRANSFER
 
-    operand_count = 1
-
-    def do(self):
-        self.cpu.user_log.log('print', aux.word_to_str(self.get_operand(0)))
-
-
-class PRINTCHAR(Instruction):
-    '''Print char to CPU log'''
-
-    operand_count = 1
-
-    def do(self):
-        self.cpu.user_log.log('print', chr(self.get_operand(0)))
-
+############################################################ GENERAL
 
 class MOV(Instruction):
-    '''Transfer data from reg/mem/immediate value to reg/mem'''
+    '''Move data so that <op0> = <op1>'''
 
     operand_count = 2
 
@@ -322,142 +292,10 @@ class MOV(Instruction):
         self.set_operand(0, self.get_operand(1))
 
 
-class ADD(Instruction):
-    '''Add'''
-
-    operand_count = 3
-
-    def do(self):
-        self.set_operand(0, self.get_operand(1) + self.get_operand(2))
-
-
-class SUB(Instruction):
-    '''Substract'''
-
-    operand_count = 3
-
-    def do(self):
-        self.set_operand(0, self.get_operand(1) - self.get_operand(2))
-
-
-class MUL(Instruction):
-    '''Multiply'''
-
-    operand_count = 3
-
-    def do(self):
-        self.set_operand(0, self.get_operand(1) * self.get_operand(2))
-
-
-class INC(Instruction):
-    '''Increase'''
-
-    operand_count = 2
-
-    def do(self):
-        self.set_operand(0, self.get_operand(0) + self.get_operand(1))
-
-
-class DEC(Instruction):
-    '''Decrease'''
-
-    operand_count = 2
-
-    def do(self):
-        self.set_operand(0, self.get_operand(0) - self.get_operand(1))
-
-
-class JUMP(Instruction):
-    '''Jump'''
-
-    operand_count = 1
-
-    def do(self):
-        return self.get_operand(0)
-
-
-class JZ(Instruction):
-    '''Jump if zero'''
-
-    operand_count = 2
-
-    def do(self):
-        if self.get_operand(0) == 0:
-            return self.get_operand(1)
-
-
-class JNZ(Instruction):
-    '''Jump if non-zero'''
-
-    operand_count = 2
-
-    def do(self):
-        if self.get_operand(0) != 0:
-            return self.get_operand(1)
-
-
-class JEQ(Instruction):
-    '''Jump if equal'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) == self.get_operand(1):
-            return self.get_operand(2)
-
-
-class JNE(Instruction):
-    '''Jump if not equal'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) != self.get_operand(1):
-            return self.get_operand(2)
-
-
-class JGT(Instruction):
-    '''Jump if greater'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) > self.get_operand(1):
-            return self.get_operand(2)
-
-
-class JGE(Instruction):
-    '''Jump if greater or equal'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) >= self.get_operand(1):
-            return self.get_operand(2)
-
-
-class JLT(Instruction):
-    '''Jump if less'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) < self.get_operand(1):
-            return self.get_operand(2)
-
-
-class JLE(Instruction):
-    '''Jump if less or equal'''
-
-    operand_count = 3
-
-    def do(self):
-        if self.get_operand(0) <= self.get_operand(1):
-            return self.get_operand(2)
-
+############################################################ STACK
 
 class PUSH(Instruction):
-    '''Push to stack'''
+    '''Push <op0> to stack'''
 
     operand_count = 1
 
@@ -470,7 +308,7 @@ class PUSH(Instruction):
 
 
 class POP(Instruction):
-    '''Pop from stack'''
+    '''Pop <op0> from stack'''
 
     operand_count = 1
 
@@ -490,27 +328,198 @@ class PUSHF(Instruction):
 
 
 class POPF(Instruction):
-    '''Pop flags from stack'''
+    '''Pop FLAGS from stack'''
 
     def do(self):
         self.cpu.stack_pop_flags()
 
 
+############################################################ I/O
+
+class IN(Instruction):
+    '''Transfer input data from IOPort <op0> into memory at address <op1>, set CX to its length and send ACK'''
+
+    operand_count = 2
+
+    def do(self):
+        ioport_number = self.get_operand(0)
+        pos = self.get_operand(1)
+        input_data = self.cpu.device_controller.ioports[ioport_number].read_input()
+        for idx, value in enumerate(input_data):
+            self.cpu.ram.write_byte(pos + idx, ord(value))
+        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
+        self.cpu.set_register('CX', len(input_data))
+
+
+class OUT(Instruction):
+    '''Transfer output data (CX bytes) from memory at address <op1> to IOPort <op0>'''
+
+    operand_count = 2
+
+    def do(self):
+        ioport_number = self.get_operand(0)
+        pos = self.get_operand(1)
+        cx = self.cpu.get_register('CX')
+        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(''.join([
+            chr(self.cpu.ram.read_byte(pos + idx)) for idx in xrange(cx)
+        ]))
+        self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(output_data), cx))
+
+
+
+
+################################################################################ ARITHMETIC
+
+class ADD(Instruction):
+    '''Add: <op0> = <op1> + <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) + self.get_operand(2))
+
+
+class SUB(Instruction):
+    '''Substract: <op0> = <op1> - <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) - self.get_operand(2))
+
+
+class MUL(Instruction):
+    '''Multiply: <op0> = <op1> * <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) * self.get_operand(2))
+
+
+class INC(Instruction):
+    '''Increase: <op0> += <op1>'''
+
+    operand_count = 2
+
+    def do(self):
+        self.set_operand(0, self.get_operand(0) + self.get_operand(1))
+
+
+class DEC(Instruction):
+    '''Descrease: <op0> -= <op1>'''
+
+    operand_count = 2
+
+    def do(self):
+        self.set_operand(0, self.get_operand(0) - self.get_operand(1))
+
+
+
+
+################################################################################ CONTROL FLOW
+
+############################################################ JUMP
+
+class JMP(Instruction):
+    '''Jump to <op0>'''
+
+    operand_count = 1
+
+    def do(self):
+        return self.get_operand(0)
+
+
+class JZ(Instruction):
+    '''Jump to <op1> if <op0> is zero'''
+
+    operand_count = 2
+
+    def do(self):
+        if self.get_operand(0) == 0:
+            return self.get_operand(1)
+
+
+class JNZ(Instruction):
+    '''Jump to <op1> if <op0> is non-zero'''
+
+    operand_count = 2
+
+    def do(self):
+        if self.get_operand(0) != 0:
+            return self.get_operand(1)
+
+
+class JEQ(Instruction):
+    '''Jump to <op2> if <op0> = <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) == self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JNE(Instruction):
+    '''Jump to <op2> if <op0> != <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) != self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JGT(Instruction):
+    '''Jump to <op2> if <op0> > <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) > self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JGE(Instruction):
+    '''Jump to <op2> if <op0> >= <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) >= self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JLT(Instruction):
+    '''Jump to <op2> if <op0> < <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) < self.get_operand(1):
+            return self.get_operand(2)
+
+
+class JLE(Instruction):
+    '''Jump to <op2> if <op0> <= <op1>'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_operand(0) <= self.get_operand(1):
+            return self.get_operand(2)
+
+
+############################################################ SUBROUTINE
+
 class CALL(Instruction):
-    '''Call subroutine'''
+    '''Call subroutine at address <op0>'''
 
     operand_count = 1
 
     def do(self):
         self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
         return self.get_operand(0)
-
-
-class RET(Instruction):
-    '''Return from subroutine'''
-
-    def do(self):
-        return self.cpu.stack_pop_word()
 
 
 class ENTER(Instruction):
@@ -532,6 +541,13 @@ class LEAVE(Instruction):
         self.cpu.set_register('BP', self.cpu.stack_pop_word())
 
 
+class RET(Instruction):
+    '''Return from subroutine'''
+
+    def do(self):
+        return self.cpu.stack_pop_word()
+
+
 class RETPOP(Instruction):
     '''Return from subroutine and pop <op0> bytes'''
 
@@ -543,8 +559,10 @@ class RETPOP(Instruction):
         return next_ip
 
 
+############################################################ INTERRUPT
+
 class INT(Instruction):
-    '''Call interrupt'''
+    '''Call interrupt <op0>'''
 
     operand_count = 1
 
@@ -565,7 +583,7 @@ class IRET(Instruction):
 
 
 class SETINT(Instruction):
-    '''Set IVT'''
+    '''Set IVT[<op0>] to <op1>'''
 
     operand_count = 2
 
@@ -588,39 +606,51 @@ class CLI(Instruction):
         self.cpu.disable_interrupts()
 
 
-class IN(Instruction):
-    '''Transfer input data from IOPort into memory, set CX to length and send ACK'''
-
-    operand_count = 2
-
-    def do(self):
-        ioport_number = self.get_operand(0)
-        pos = self.get_operand(1)
-        input_data = self.cpu.device_controller.ioports[ioport_number].read_input()
-        for idx, value in enumerate(input_data):
-            self.cpu.ram.write_byte(pos + idx, ord(value))
-        self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
-        self.cpu.set_register('CX', len(input_data))
 
 
-class OUT(Instruction):
-    '''Transfer output data (CX bytes) from memory to IOPort and set CX'''
+################################################################################ MISC
 
-    operand_count = 2
+class NOP(Instruction):
+    '''No operation'''
+    pass
+
+
+class HLT(Instruction):
+    '''Halt CPU so it's inactive until a hardware interrupt occurs'''
 
     def do(self):
-        ioport_number = self.get_operand(0)
-        pos = self.get_operand(1)
-        cx = self.cpu.get_register('CX')
-        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(''.join([
-            chr(self.cpu.ram.read_byte(pos + idx)) for idx in xrange(cx)
-        ]))
-        self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(output_data), cx))
-        self.cpu.set_register('CX', 0)  # is it required?
+        self.cpu.halt = True
+        self.cpu.log.log('cpu', 'Halted')
+
+
+class SHUTDOWN(Instruction):
+    '''Shut down Aldebaran'''
+
+    def do(self):
+        self.cpu.shutdown = True
+        self.cpu.log.log('cpu', 'Shut down')
+
+
+class PRINT(Instruction):
+    '''Print <op0> as word to CPU log'''
+
+    operand_count = 1
+
+    def do(self):
+        self.cpu.user_log.log('print', aux.word_to_str(self.get_operand(0)))
+
+
+class PRINTCHAR(Instruction):
+    '''Print <op0> as char to CPU log'''
+
+    operand_count = 1
+
+    def do(self):
+        self.cpu.user_log.log('print', chr(self.get_operand(0)))
 
 
 class SETTMR(Instruction):
-    '''Set subtimer of Timer'''
+    '''Set subtimer <op0> of Timer to mode=<op1>, speed=<op2>, phase=<op3>, interrupt_number=<op4>'''
 
     operand_count = 5
 
