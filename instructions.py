@@ -256,6 +256,20 @@ class Instruction(object):
         else:
             raise errors.InvalidOperandError(self, self.operands[opnum])
 
+    def get_signed_operand(self, opnum):
+        oplen, optype, oprest = self.operands[opnum]
+        if oplen == OPLEN_WORD:
+            return aux.word_to_signed(self.get_operand(opnum))
+        return aux.byte_to_signed(self.get_operand(opnum))
+
+    def set_signed_operand(self, opnum, value):
+        oplen, optype, oprest = self.operands[opnum]
+        if oplen == OPLEN_WORD:
+            mask = 0xFFFF
+        else:
+            mask = 0xFF
+        self.set_operand(opnum, value & mask)
+
     def run(self):
         '''Run instruction'''
         next_ip = self.do()
@@ -376,7 +390,7 @@ class ADD(Instruction):
     operand_count = 3
 
     def do(self):
-        self.set_operand(0, self.get_operand(1) + self.get_operand(2))
+        self.set_signed_operand(0, self.get_signed_operand(1) + self.get_signed_operand(2))
 
 
 class SUB(Instruction):
@@ -385,16 +399,34 @@ class SUB(Instruction):
     operand_count = 3
 
     def do(self):
-        self.set_operand(0, self.get_operand(1) - self.get_operand(2))
+        self.set_signed_operand(0, self.get_signed_operand(1) - self.get_signed_operand(2))
 
 
 class MUL(Instruction):
-    '''Multiply: <op0> = <op1> * <op2>'''
+    '''Multiply (unsigned): <op0> = <op1> * <op2>'''
 
     operand_count = 3
 
     def do(self):
         self.set_operand(0, self.get_operand(1) * self.get_operand(2))
+
+
+class IMUL(Instruction):
+    '''Multiply (signed): <op0> = <op1> * <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_signed_operand(0, self.get_signed_operand(1) * self.get_signed_operand(2))
+
+
+class NEG(Instruction):
+    '''Negate: <op0> = -<op1>'''
+
+    operand_count = 2
+
+    def do(self):
+        self.set_signed_operand(0, -self.get_signed_operand(1))
 
 
 class INC(Instruction):
@@ -403,16 +435,16 @@ class INC(Instruction):
     operand_count = 2
 
     def do(self):
-        self.set_operand(0, self.get_operand(0) + self.get_operand(1))
+        self.set_signed_operand(0, self.get_signed_operand(0) + self.get_signed_operand(1))
 
 
 class DEC(Instruction):
-    '''Descrease: <op0> -= <op1>'''
+    '''Decrease: <op0> -= <op1>'''
 
     operand_count = 2
 
     def do(self):
-        self.set_operand(0, self.get_operand(0) - self.get_operand(1))
+        self.set_signed_operand(0, self.get_signed_operand(0) - self.get_signed_operand(1))
 
 
 
@@ -471,7 +503,47 @@ class JNE(Instruction):
 
 
 class JGT(Instruction):
-    '''Jump to <op2> if <op0> > <op1>'''
+    '''Jump to <op2> if <op0> > <op1> (signed)'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_signed_operand(0) > self.get_signed_operand(1):
+            return self.get_operand(2)
+
+
+class JGE(Instruction):
+    '''Jump to <op2> if <op0> >= <op1> (signed)'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_signed_operand(0) >= self.get_signed_operand(1):
+            return self.get_operand(2)
+
+
+class JLT(Instruction):
+    '''Jump to <op2> if <op0> < <op1> (signed)'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_signed_operand(0) < self.get_signed_operand(1):
+            return self.get_operand(2)
+
+
+class JLE(Instruction):
+    '''Jump to <op2> if <op0> <= <op1> (signed)'''
+
+    operand_count = 3
+
+    def do(self):
+        if self.get_signed_operand(0) <= self.get_signed_operand(1):
+            return self.get_operand(2)
+
+
+class JA(Instruction):
+    '''Jump to <op2> if <op0> > <op1> (unsigned)'''
 
     operand_count = 3
 
@@ -480,8 +552,8 @@ class JGT(Instruction):
             return self.get_operand(2)
 
 
-class JGE(Instruction):
-    '''Jump to <op2> if <op0> >= <op1>'''
+class JAE(Instruction):
+    '''Jump to <op2> if <op0> >= <op1> (unsigned)'''
 
     operand_count = 3
 
@@ -490,8 +562,8 @@ class JGE(Instruction):
             return self.get_operand(2)
 
 
-class JLT(Instruction):
-    '''Jump to <op2> if <op0> < <op1>'''
+class JB(Instruction):
+    '''Jump to <op2> if <op0> < <op1> (unsigned)'''
 
     operand_count = 3
 
@@ -500,8 +572,8 @@ class JLT(Instruction):
             return self.get_operand(2)
 
 
-class JLE(Instruction):
-    '''Jump to <op2> if <op0> <= <op1>'''
+class JBE(Instruction):
+    '''Jump to <op2> if <op0> <= <op1> (unsigned)'''
 
     operand_count = 3
 

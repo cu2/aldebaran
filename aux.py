@@ -117,3 +117,11 @@ def byte_to_signed(byte):
     if byte > 127:
         return byte - 256
     return byte
+
+
+def word_to_signed(word):
+    if word < 0 or word > 65535:
+        raise errors.WordOutOfRangeError(hex(word))
+    if word > 32767:
+        return word - 65536
+    return word
