@@ -326,37 +326,7 @@ class BIOS(aux.Hardware):
 
 def main(args):
     # logging
-    minimal_loggers = {
-        'aldebaran': aux.Log(),
-        'clock': None,
-        'cpu': None,
-        'user': aux.Log(),
-        'ram': None,
-        'interrupt_controller': None,
-        'device_controller': None,
-        'timer': None,
-    }
-    normal_loggers = {
-        'aldebaran': aux.Log(),
-        'clock': None,
-        'cpu': aux.Log(),
-        'user': aux.Log(),
-        'ram': None,
-        'interrupt_controller': aux.Log(),
-        'device_controller': aux.Log(),
-        'timer': None,
-    }
-    full_loggers = {
-        'aldebaran': aux.Log(),
-        'clock': aux.Log(),
-        'cpu': aux.Log(),
-        'user': aux.Log(),
-        'ram': aux.Log(),
-        'interrupt_controller': aux.Log(),
-        'device_controller': aux.Log(),
-        'timer': aux.Log(),
-    }
-    loggers = normal_loggers  # choose verbosity
+    loggers = config.loggers
     # bios
     inst_list, inst_dict = instructions.get_instruction_set()
     if len(args):

@@ -1,3 +1,6 @@
+import aux
+
+
 # Network config
 
 aldebaran_host = 'localhost'
@@ -32,3 +35,39 @@ system_addresses = {
 }
 clock_freq = 200  # Hz
 timer_freq = 10  # Hz
+
+
+# Logging
+
+minimal_loggers = {
+    'aldebaran': aux.Log(),
+    'clock': None,
+    'cpu': None,
+    'user': aux.Log(),
+    'ram': None,
+    'interrupt_controller': None,
+    'device_controller': None,
+    'timer': None,
+}
+normal_loggers = {
+    'aldebaran': aux.Log(),
+    'clock': None,
+    'cpu': aux.Log(),
+    'user': aux.Log(),
+    'ram': None,
+    'interrupt_controller': aux.Log(),
+    'device_controller': aux.Log(),
+    'timer': None,
+}
+full_loggers = {
+    'aldebaran': aux.Log(),
+    'clock': aux.Log(),
+    'cpu': aux.Log(),
+    'user': aux.Log(),
+    'ram': aux.Log(),
+    'interrupt_controller': aux.Log(),
+    'device_controller': aux.Log(),
+    'timer': aux.Log(),
+}
+
+loggers = normal_loggers  # choose verbosity
