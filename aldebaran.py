@@ -199,16 +199,15 @@ class CPU(aux.Hardware):
         if register_name in self.registers:
             value = self.registers[register_name]
             hex_value = aux.word_to_str(value)
-        if register_name in ['AL', 'BL', 'CL', 'DL']:
+        elif register_name in ['AL', 'BL', 'CL', 'DL']:
             value = aux.get_low(self.registers[register_name[0] + 'X'])
-        if register_name in ['AH', 'BH', 'CH', 'DH']:
+            hex_value = aux.byte_to_str(value)
+        elif register_name in ['AH', 'BH', 'CH', 'DH']:
             value = aux.get_high(self.registers[register_name[0] + 'X'])
-        if value is not None:
-            if hex_value is None:
-                hex_value = aux.byte_to_str(value)
-            self.log.log('cpu', 'get_reg(%s) = %s' % (register_name, hex_value))
+            hex_value = aux.byte_to_str(value)
         else:
             raise errors.InvalidRegisterNameError(register_name)
+        self.log.log('cpu', 'get_reg(%s) = %s' % (register_name, hex_value))
         return value
 
     def set_register(self, register_name, value):
@@ -218,7 +217,7 @@ class CPU(aux.Hardware):
             return
         if register_name in ['AL', 'BL', 'CL', 'DL']:
             self.registers[register_name[0] + 'X'] = aux.set_low(self.registers[register_name[0] + 'X'], value)
-        if register_name in ['AH', 'BH', 'CH', 'DH']:
+        elif register_name in ['AH', 'BH', 'CH', 'DH']:
             self.registers[register_name[0] + 'X'] = aux.set_high(self.registers[register_name[0] + 'X'], value)
         else:
             raise errors.InvalidRegisterNameError(register_name)
