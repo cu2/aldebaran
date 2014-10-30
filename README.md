@@ -47,11 +47,12 @@ The Interrupt Controller accepts hardware interrupts from the Device Controller 
 
 Interrupt numbers (00-FF) are mapped to interrupt handler routines based on the Interrupt Vector Table (a 256 times 2 bytes part of the RAM). Interrupt numbers are the following:
 
-- 00-1F: system interrupts
+- 00-3F: system interrupts
+    - 00-1D: unused (so far)
     - 1E: device_registered (called when a device is registered)
     - 1F: device_unregistered (called when a device is unregistered)
-- 20-2F: ioport_in (called when a device sends data to an IOPort)
-- 30-3F: ioport_out (called after data is sent to a device and the device responds a status)
+    - 20-2F: ioport_in (called when a device sends data to an IOPort)
+    - 30-3F: ioport_out (called after data is sent to a device and the device responds a status)
 - 40-FF: free interrupts
 
 
@@ -85,7 +86,7 @@ Another part of the RAM is the Device Status Table. For each IOPort it has 1 byt
 5. CPU calls the specified interrupt handler routine
 6. The routine checks the Device Status Table in RAM to see the device's status
 
-### Registering/unregistering devices
+#### Registering/unregistering devices
 
 1. Device sends signal to Device Controller
 2. Device Controller registers/unregisters the device with the specified IOPort
