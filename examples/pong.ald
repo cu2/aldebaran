@@ -1,0 +1,251 @@
+# Pong
+
+# Still under construction...
+# TODO: left and right paddle with the same keyboard shouldn't block each other
+# TODO: reset ball (random)
+# TODO: reset game
+# TODO: increase ball speed with time
+# TODO: game over
+# TODO: restart
+# TODO: start, wait for players
+
+
+# Usage:
+# connect PongMonitor to IOPort[0]:
+# kivy run_device.py pongmonitor 0
+
+
+
+# CODE
+
+MAIN:
+    CALL RESET_GAME
+    SETINT 80 MAIN_LOOP  # IRQ80 -> MAIN_LOOP
+    SETTMR 00 02 0001 0000 80  # subtimer[0] -> IRQ80
+    SETINT 20 INPUT_HANDLER  # ioport_in[0]
+    HALTLOOP:
+        HLT
+    JMP HALTLOOP
+
+
+INPUT_HANDLER:
+    IN 00 INPUT_BUFFER
+    JLT CX 0002 ENDIF_VALID_INPUT
+        JNE [INPUT_BUFFER]B 4C ELSEIF_LEFT_RIGHT_PADDLE  # L
+            JNE [INPUT_BUFFER+1]B 55 ELSEIF_LEFT_PADDLE_UP_OR_DOWN  # U
+                MOV [LEFT_PADDLE_SPEED] FFFF
+            JMP ENDIF_LEFT_PADDLE_UP_OR_DOWN
+            ELSEIF_LEFT_PADDLE_UP_OR_DOWN: JNE [INPUT_BUFFER+1]B 44 ENDIF_LEFT_PADDLE_UP_OR_DOWN  # D
+                MOV [LEFT_PADDLE_SPEED] 0001
+            ENDIF_LEFT_PADDLE_UP_OR_DOWN:
+        JMP ENDIF_LEFT_RIGHT_PADDLE
+        ELSEIF_LEFT_RIGHT_PADDLE: JNE [INPUT_BUFFER]B 52 ENDIF_LEFT_RIGHT_PADDLE  # R
+            JNE [INPUT_BUFFER+1]B 55 ELSEIF_RIGHT_PADDLE_UP_OR_DOWN  # U
+                MOV [RIGHT_PADDLE_SPEED] FFFF
+            JMP ENDIF_RIGHT_PADDLE_UP_OR_DOWN
+            ELSEIF_RIGHT_PADDLE_UP_OR_DOWN: JNE [INPUT_BUFFER+1]B 44 ENDIF_RIGHT_PADDLE_UP_OR_DOWN  # D
+                MOV [RIGHT_PADDLE_SPEED] 0001
+            ENDIF_RIGHT_PADDLE_UP_OR_DOWN:
+        ENDIF_LEFT_RIGHT_PADDLE:
+    ENDIF_VALID_INPUT:
+    IRET
+
+
+MAIN_LOOP:
+    # move ball left-right
+    INC [BALL_X] [BALL_SPEED_X]
+
+    # check paddle-ball collision
+    MOV [NEXT_BALL_SPEED_Y] [BALL_SPEED_Y]
+    JE [BALL_PAST_PADDLE] 0001 PAST_PADDLE
+        JLT [BALL_X] [RIGHT_PADDLE_X] ELSEIF_HIT_PADDLE
+            SUB AX [RIGHT_PADDLE_Y] [PADDLE_SIZE]
+            JLT [BALL_Y] AX MISS_RIGHT_PADDLE
+            ADD AX [RIGHT_PADDLE_Y] [PADDLE_SIZE]
+            JGT [BALL_Y] AX MISS_RIGHT_PADDLE
+                SUB AX [BALL_Y] [RIGHT_PADDLE_Y]  # AX = -PADDLE_SIZE .. PADDLE_SIZE
+                INC AX [PADDLE_SIZE]  # AX = 0 .. 2*PADDLE_SIZE
+                DIV AX AX 0006  # AX = 0 .. 16
+                MUL AX AX 0002
+                MOV [NEXT_BALL_SPEED_Y] [REFLECTION_TABLE+AX]
+                MOV [BALL_X] [RIGHT_PADDLE_X]
+                NEG [BALL_SPEED_X] [BALL_SPEED_X]
+            JMP ENDIF_HIT_PADDLE
+            MISS_RIGHT_PADDLE:
+                MOV [BALL_PAST_PADDLE] 0001
+        JMP ENDIF_HIT_PADDLE
+        ELSEIF_HIT_PADDLE: JGT [BALL_X] [LEFT_PADDLE_X] ENDIF_HIT_PADDLE
+            SUB AX [LEFT_PADDLE_Y] [PADDLE_SIZE]
+            JLT [BALL_Y] AX MISS_LEFT_PADDLE
+            ADD AX [LEFT_PADDLE_Y] [PADDLE_SIZE]
+            JGT [BALL_Y] AX MISS_LEFT_PADDLE
+                SUB AX [BALL_Y] [LEFT_PADDLE_Y]  # AX = -PADDLE_SIZE .. PADDLE_SIZE
+                INC AX [PADDLE_SIZE]  # AX = 0 .. 2*PADDLE_SIZE
+                DIV AX AX 0006  # AX = 0 .. 16
+                MUL AX AX 0002
+                MOV [NEXT_BALL_SPEED_Y] [REFLECTION_TABLE+AX]
+                MOV [BALL_X] [LEFT_PADDLE_X]
+                NEG [BALL_SPEED_X] [BALL_SPEED_X]
+            JMP ENDIF_HIT_PADDLE
+            MISS_LEFT_PADDLE:
+                MOV [BALL_PAST_PADDLE] 0001
+        ENDIF_HIT_PADDLE:
+    PAST_PADDLE:
+
+    # check paddle-edge collision
+    JLT [BALL_X] [RIGHT_EDGE] ELSEIF_HIT_EDGE
+        INC [LEFT_SCORE] 0001
+        CALL RESET_BALL
+    JMP ENDIF_HIT_EDGE
+    ELSEIF_HIT_EDGE: JGT [BALL_X] [LEFT_EDGE] ENDIF_HIT_EDGE
+        INC [RIGHT_SCORE] 0001
+        CALL RESET_BALL
+    ENDIF_HIT_EDGE:
+
+    # move ball up-down
+    INC [BALL_Y] [BALL_SPEED_Y]
+    MOV [BALL_SPEED_Y] [NEXT_BALL_SPEED_Y]
+    JLT [BALL_Y] [BOTTOM_WALL] ELSEIF_HIT_WALL
+        MOV [BALL_Y] [BOTTOM_WALL]
+        NEG [BALL_SPEED_Y] [BALL_SPEED_Y]
+    JMP ENDIF_HIT_WALL
+    ELSEIF_HIT_WALL: JGT [BALL_Y] [TOP_WALL] ENDIF_HIT_WALL
+        MOV [BALL_Y] [TOP_WALL]
+        NEG [BALL_SPEED_Y] [BALL_SPEED_Y]
+    ENDIF_HIT_WALL:
+
+    # move left paddle
+    IMUL AX [LEFT_PADDLE_SPEED] [PADDLE_SPEED]
+    INC [LEFT_PADDLE_Y] AX
+    MOV [LEFT_PADDLE_SPEED] 0000
+    ADD AX [TOP_WALL] [UNREACHABLE_ZONE_SIZE]
+    JLE AX [LEFT_PADDLE_Y] LEFT_PADDLE_TOP_POS_OK
+        MOV [LEFT_PADDLE_Y] AX
+    LEFT_PADDLE_TOP_POS_OK:
+    SUB AX [BOTTOM_WALL] [UNREACHABLE_ZONE_SIZE]
+    JGE AX [LEFT_PADDLE_Y] LEFT_PADDLE_BOTTOM_POS_OK
+        MOV [LEFT_PADDLE_Y] AX
+    LEFT_PADDLE_BOTTOM_POS_OK:
+
+    # move right paddle
+    IMUL AX [RIGHT_PADDLE_SPEED] [PADDLE_SPEED]
+    INC [RIGHT_PADDLE_Y] AX
+    MOV [RIGHT_PADDLE_SPEED] 0000
+    ADD AX [TOP_WALL] [UNREACHABLE_ZONE_SIZE]
+    JLE AX [RIGHT_PADDLE_Y] RIGHT_PADDLE_TOP_POS_OK
+        MOV [RIGHT_PADDLE_Y] AX
+    RIGHT_PADDLE_TOP_POS_OK:
+    SUB AX [BOTTOM_WALL] [UNREACHABLE_ZONE_SIZE]
+    JGE AX [RIGHT_PADDLE_Y] RIGHT_PADDLE_BOTTOM_POS_OK
+        MOV [RIGHT_PADDLE_Y] AX
+    RIGHT_PADDLE_BOTTOM_POS_OK:
+
+    # construct output:
+    MOV [OUTPUT_BUFFER] [BALL_X]
+    MOV [OUTPUT_BUFFER+02] [BALL_Y]
+    MOV [OUTPUT_BUFFER+04] [LEFT_PADDLE_X]
+    MOV [OUTPUT_BUFFER+06] [LEFT_PADDLE_Y]
+    MOV [OUTPUT_BUFFER+08] [RIGHT_PADDLE_X]
+    MOV [OUTPUT_BUFFER+0A] [RIGHT_PADDLE_Y]
+    SUB [OUTPUT_BUFFER+0C] [PADDLE_SIZE] 0014  # visible paddle size should be smaller (looks as if you can hit with the side)
+    MOV [OUTPUT_BUFFER+0E] [LEFT_SCORE]
+    MOV [OUTPUT_BUFFER+10] [RIGHT_SCORE]
+    # send output:
+    MOV CX 12
+    OUT 00 OUTPUT_BUFFER
+    IRET
+
+
+RESET_GAME:
+    CALL RESET_BALL
+    RET
+
+
+RESET_BALL:
+    MOV [BALL_X] 0000
+    MOV [BALL_Y] 0000
+    MOV [BALL_PAST_PADDLE] 0000
+    RET
+
+# END CODE
+
+
+
+# DATA
+
+    # config
+
+    TOP_WALL:
+        DAT FE70  # -400
+    BOTTOM_WALL:
+        DAT 0190  # 400
+
+    LEFT_EDGE:
+        DAT FD94  # -620
+    RIGHT_EDGE:
+        DAT 026C  # 620
+
+    LEFT_PADDLE_X:
+        DAT FDE4  # -540
+    RIGHT_PADDLE_X:
+        DAT 021C  # 540
+    PADDLE_SIZE:
+        DAT 0030
+    UNREACHABLE_ZONE_SIZE:
+        DAT 0040
+    PADDLE_SPEED:
+        DAT 0010
+
+    BALL_SPEED_X:
+        DAT 000C
+    BALL_SPEED_Y:
+        DAT 0004
+
+    REFLECTION_TABLE:
+        DAT FFF0
+        DAT FFF2
+        DAT FFF4
+        DAT FFF6
+        DAT FFF8
+        DAT FFFA
+        DAT FFFC
+        DAT FFFE
+        DAT 0000
+        DAT 0002
+        DAT 0004
+        DAT 0006
+        DAT 0008
+        DAT 000A
+        DAT 000C
+        DAT 000E
+        DAT 0010
+
+    # variables
+
+    BALL_X:
+        DAT 0000
+    BALL_Y:
+        DAT 0000
+    BALL_PAST_PADDLE:
+        DAT 0000
+    NEXT_BALL_SPEED_Y:
+        DAT 0000
+    LEFT_PADDLE_Y:
+        DAT 0000
+    RIGHT_PADDLE_Y:
+        DAT 0000
+    LEFT_PADDLE_SPEED:
+        DAT 0000
+    RIGHT_PADDLE_SPEED:
+        DAT 0000
+    LEFT_SCORE:
+        DAT 0000
+    RIGHT_SCORE:
+        DAT 0000
+
+    INPUT_BUFFER:
+        DATN FF 00
+    OUTPUT_BUFFER:
+        DATN FF 00
+
+# END DATA

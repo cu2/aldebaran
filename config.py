@@ -33,7 +33,7 @@ system_addresses = {
     'device_registry_address': ram_size - IVT_size - device_registry_size,
     'IVT': ram_size - IVT_size,
 }
-clock_freq = 200  # Hz
+clock_freq = 10000  # Hz
 timer_freq = 10  # Hz
 
 
@@ -70,4 +70,6 @@ full_loggers = {
     'timer': aux.Log(),
 }
 
-loggers = normal_loggers  # choose verbosity
+# choose verbosity:
+loggers = minimal_loggers
+# loggers = normal_loggers
