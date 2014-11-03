@@ -420,6 +420,42 @@ class IMUL(Instruction):
         self.set_signed_operand(0, self.get_signed_operand(1) * self.get_signed_operand(2))
 
 
+class DIV(Instruction):
+    '''Divide (unsigned): <op0> = <op1> / <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) / self.get_operand(2))
+
+
+class IDIV(Instruction):
+    '''Divide (signed): <op0> = <op1> / <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_signed_operand(0, self.get_signed_operand(1) / self.get_signed_operand(2))
+
+
+class MOD(Instruction):
+    '''Modulo (unsigned): <op0> = <op1> % <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_operand(0, self.get_operand(1) % self.get_operand(2))
+
+
+class IMOD(Instruction):
+    '''Modulo (signed): <op0> = <op1> % <op2>'''
+
+    operand_count = 3
+
+    def do(self):
+        self.set_signed_operand(0, self.get_signed_operand(1) % self.get_signed_operand(2))
+
+
 class NEG(Instruction):
     '''Negate: <op0> = -<op1>'''
 
@@ -482,7 +518,7 @@ class JNZ(Instruction):
             return self.get_operand(1)
 
 
-class JEQ(Instruction):
+class JE(Instruction):
     '''Jump to <op2> if <op0> = <op1>'''
 
     operand_count = 3
