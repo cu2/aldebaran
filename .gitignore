@@ -2,3 +2,4 @@
 /_stuff
 *.log
 .DS_Store
+/venv
