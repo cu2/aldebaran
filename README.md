@@ -15,7 +15,7 @@ The project is under heavy construction...
 
 ### Clock
 
-The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller then the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
+The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
 
 
 ### RAM
