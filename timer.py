@@ -15,7 +15,7 @@ class Timer(aux.Hardware):
     def __init__(self, freq, log=None):
         aux.Hardware.__init__(self, log)
         if freq:
-            self.speed = 1.0 / freq
+            self.speed = 1 / freq
         else:
             self.speed = 0
         self.start_time = None
@@ -26,7 +26,7 @@ class Timer(aux.Hardware):
             'speed': 1,
             'phase': 0,
             'interrupt_number': 0,
-        } for _ in xrange(8)]
+        } for _ in range(8)]
         self.interrupt_controller = None
 
     def register_architecture(self, interrupt_controller):

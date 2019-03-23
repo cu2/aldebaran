@@ -1,9 +1,9 @@
-import Queue
+import queue
 import requests
 import struct
 import threading
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 import aux
 
@@ -17,6 +17,10 @@ class DeviceController(aux.Hardware):
 
     class RequestHandler(BaseHTTPRequestHandler):
 
+        def _writeline(self, text):
+            self.wfile.write(text.encode('utf-8'))
+            self.wfile.write('\n'.encode('utf-8'))
+
         def do_POST(self):
             ioport_number = self.path.lstrip('/')
             self.server.log.log('device_controller', 'Incoming signal to IOPort %s' % ioport_number)
@@ -29,16 +33,14 @@ class DeviceController(aux.Hardware):
             except ValueError:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: IOPort number must be an integer between 0 and %s.' % (len(self.server.ioports) - 1))
-                self.wfile.write('\n')
+                self._writeline('ERROR: IOPort number must be an integer between 0 and %s.' % (len(self.server.ioports) - 1))
                 return
             try:
-                request_body_length = int(self.headers.getheader('content-length'))
+                request_body_length = int(self.headers.get('content-length'))
             except TypeError:
                 self.send_response(411)  # Length Required
                 self.end_headers()
-                self.wfile.write('ERROR: Header "content-length" missing.')
-                self.wfile.write('\n')
+                self._writeline('ERROR: Header "content-length" missing.')
                 return
             try:
                 request_body = self.rfile.read(request_body_length)
@@ -46,8 +48,7 @@ class DeviceController(aux.Hardware):
             except Exception:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: Cannot parse request.')
-                self.wfile.write('\n')
+                self._writeline('ERROR: Cannot parse request.')
                 return
             if command == COMMAND_REGISTER:
                 self.register_device(ioport_number, argument)
@@ -58,13 +59,12 @@ class DeviceController(aux.Hardware):
             if not self.server.ioports[ioport_number].registered:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: IOPort %s is not yet registered.' % ioport_number)
-                self.wfile.write('\n')
+                self._writeline('ERROR: IOPort %s is not yet registered.' % ioport_number)
                 return
-            response_code, response = self.server.ioports[ioport_number].handle_input(command, argument)
+            response_code, response_text = self.server.ioports[ioport_number].handle_input(command, argument)
             self.send_response(response_code)
             self.end_headers()
-            self.wfile.write(response)
+            self.wfile.write(response_text.encode('utf-8'))
 
         def log_message(self, format, *args):
             return
@@ -73,27 +73,26 @@ class DeviceController(aux.Hardware):
             device_id = [0, 0, 0]
             try:
                 device_type, device_id[0], device_id[1], device_id[2], device_host, device_port = struct.unpack('BBBB255pH', argument)
+                device_host = device_host.decode('utf-8')
             except Exception:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: Cannot parse argument.')
-                self.wfile.write('\n')
+                self._writeline('ERROR: Cannot parse argument.')
                 return
             self.server.log.log('device_controller', 'Registering device to IOPort %s...' % ioport_number)
             self.server.log.log('device_controller', 'Device type and ID: %s %s' % (
                 aux.byte_to_str(device_type),
-                ' '.join([aux.byte_to_str(device_id[i]) for i in xrange(3)])
+                ' '.join([aux.byte_to_str(device_id[i]) for i in range(3)])
             ))
             self.server.log.log('device_controller', 'Device host and port: %s:%s' % (device_host, device_port))
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number, device_type)
-            for i in xrange(3):
+            for i in range(3):
                 self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number + 1 + i, device_id[i])
             self.server.ioports[ioport_number].register_device(device_host, device_port)
             self.server.interrupt_controller.send(self.server.system_interrupts['device_registered'])
             self.send_response(200)
             self.end_headers()
-            self.wfile.write('Device registered to IOPort %s.' % ioport_number)
-            self.wfile.write('\n')
+            self._writeline('Device registered to IOPort %s.' % ioport_number)
             self.server.log.log('device_controller', 'Device registered to IOPort %s.' % ioport_number)
 
         def unregister_device(self, ioport_number):
@@ -104,8 +103,7 @@ class DeviceController(aux.Hardware):
             self.server.interrupt_controller.send(self.server.system_interrupts['device_unregistered'])
             self.send_response(200)
             self.end_headers()
-            self.wfile.write('Device unregistered from IOPort %s.' % ioport_number)
-            self.wfile.write('\n')
+            self._writeline('Device unregistered from IOPort %s.' % ioport_number)
             self.server.log.log('device_controller', 'Device unregistered from IOPort %s.' % ioport_number)
 
     class Server(ThreadingMixIn, HTTPServer):
@@ -127,7 +125,7 @@ class DeviceController(aux.Hardware):
         self.device_registry_address = system_addresses['device_registry_address']
         self.ioports = ioports
         self.system_interrupts = system_interrupts
-        self.output_queue = Queue.Queue()
+        self.output_queue = queue.Queue()
         self.interrupt_controller = None
         self.ram = None
         self.architecture_registered = False
@@ -189,7 +187,7 @@ class IOPort(aux.Hardware):
         self.registered = False
         self.device_host = None
         self.device_port = None
-        self.input_buffer = ''
+        self.input_buffer = b''
         self.device_controller = None
         self.log.log('ioport %s' % self.ioport_number, 'Created.')
 
@@ -198,7 +196,7 @@ class IOPort(aux.Hardware):
         self.log.log('ioport %s' % self.ioport_number, 'Registered.')
 
     def register_device(self, device_host, device_port):
-        self.input_buffer = ''
+        self.input_buffer = b''
         self.device_host = device_host
         self.device_port = device_port
         self.registered = True
@@ -206,7 +204,7 @@ class IOPort(aux.Hardware):
 
     def unregister_device(self):
         self.log.log('ioport %s' % self.ioport_number, 'Device[%s:%s] unregistered.' % (self.device_host, self.device_port))
-        self.input_buffer = ''
+        self.input_buffer = b''
         self.device_host = None
         self.device_port = None
         self.registered = False
@@ -228,7 +226,7 @@ class IOPort(aux.Hardware):
 
     def read_input(self):
         value = self.input_buffer
-        self.input_buffer = ''
+        self.input_buffer = b''
         self._send_ack()
         return value
 
@@ -239,7 +237,7 @@ class IOPort(aux.Hardware):
             self.device_host,
             self.device_port,
             'data',
-            value
+            value,
         ))
         self.log.log('ioport %s' % self.ioport_number, 'Output sent.')
         return value
@@ -251,6 +249,6 @@ class IOPort(aux.Hardware):
             self.device_host,
             self.device_port,
             'ack',
-            'ACK'
+            b'ACK',
         ))
         self.log.log('ioport %s' % self.ioport_number, 'ACK sent.')

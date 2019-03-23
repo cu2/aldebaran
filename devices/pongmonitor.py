@@ -11,7 +11,7 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
 import aux
-import device
+from . import device
 
 
 DEVICE_TYPE = 0x05
@@ -35,13 +35,13 @@ class PongMonitorWidget(Widget):
 
     def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
         if keycode[1] == 'w':
-            self.device.send_data('LU')
+            self.device.send_data(b'LU')
         elif keycode[1] == 's':
-            self.device.send_data('LD')
+            self.device.send_data(b'LD')
         elif keycode[1] == 'up':
-            self.device.send_data('RU')
+            self.device.send_data(b'RU')
         elif keycode[1] == 'down':
-            self.device.send_data('RD')
+            self.device.send_data(b'RD')
         elif keycode[1] == 'escape':
             App.get_running_app().stop()
         return True
@@ -127,7 +127,7 @@ class PongMonitorApp(App):
         widget = PongMonitorWidget(self.game_state, self.device)
         widget.build()
         self.widget = widget
-        Clock.schedule_interval(widget.update, 1.0 / self.game_state['fps'])
+        Clock.schedule_interval(widget.update, 1 / self.game_state['fps'])
         return widget
 
 
@@ -156,7 +156,7 @@ class PongMonitor(device.Device):
             'paddle_size',
             'left_score', 'right_score',
         ]):
-            self.game_state[name] = aux.word_to_signed((ord(data[2 * idx]) << 8) + ord(data[2 * idx + 1]))
+            self.game_state[name] = aux.word_to_signed((data[2 * idx] << 8) + data[2 * idx + 1])
         return 200, 'Ok\n'
 
     def run(self, args):

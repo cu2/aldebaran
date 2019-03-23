@@ -34,7 +34,7 @@ class Aldebaran(aux.Hardware):
 
     def load_bios(self):
         self.log.log('aldebaran', 'Loading BIOS...')
-        for key, (start_pos, contents) in self.bios.contents.iteritems():
+        for key, (start_pos, contents) in self.bios.contents.items():
             for rel_pos, content in enumerate(contents):
                 pos = start_pos + rel_pos
                 self.ram.write_byte(pos, content)
@@ -75,7 +75,7 @@ class Clock(aux.Hardware):
     def __init__(self, freq, log=None):
         aux.Hardware.__init__(self, log)
         if freq:
-            self.speed = 1.0 / freq
+            self.speed = 1 / freq
         else:
             self.speed = 0
         self.start_time = None
@@ -171,9 +171,9 @@ class CPU(aux.Hardware):
 
     def mini_debugger(self):
         if not isinstance(self.log, aux.SilentLog):
-            ram_page = (self.registers['IP'] / 16) * 16
+            ram_page = (self.registers['IP'] // 16) * 16
             rel_sp = self.system_addresses['SP'] - self.registers['SP']
-            stack_page = self.system_addresses['SP'] - 11 - (rel_sp / 12) * 12
+            stack_page = self.system_addresses['SP'] - 11 - (rel_sp // 12) * 12
             self.log.log('cpu', 'IP=%s AX/BX/CX/DX=%s/%s/%s/%s RAM[%s]:%s ST[%s/%s]:%s' % (
                 aux.word_to_str(self.registers['IP']),
                 aux.word_to_str(self.registers['AX']),
@@ -181,16 +181,16 @@ class CPU(aux.Hardware):
                 aux.word_to_str(self.registers['CX']),
                 aux.word_to_str(self.registers['DX']),
                 aux.word_to_str(ram_page),
-                ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in xrange(ram_page, ram_page + 16)]),
+                ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in range(ram_page, ram_page + 16)]),
                 aux.word_to_str(stack_page),
-                aux.word_to_str(rel_sp / 12),
+                aux.word_to_str(rel_sp // 12),
                 ''.join([aux.byte_to_str(self.ram.mem[idx]) + (
                         (
                             '<{' if idx == self.registers['BP'] else '< '
                         ) if idx == self.registers['SP'] else (
                             '{ ' if idx == self.registers['BP'] else '  '
                         )
-                    ) for idx in xrange(stack_page, stack_page + 16)]),
+                    ) for idx in range(stack_page, stack_page + 16)]),
             ))
 
     def get_register(self, register_name):
@@ -338,7 +338,7 @@ def main(args):
         asm.load_file(start_program_filename)
         start_program = asm.assemble(config.system_addresses['entry_point'])
     except errors.UnknownInstructionError as e:
-        print 'errors.UnknownInstructionError: %s' % e
+        print('errors.UnknownInstructionError: %s' % e)
         return 1
     bios = BIOS({
         'start': (config.system_addresses['entry_point'], start_program),
@@ -355,13 +355,13 @@ def main(args):
         'device_controller': device_controller.DeviceController(
             config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
             config.system_addresses, config.system_interrupts,
-            [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in xrange(config.number_of_ioports)],
+            [device_controller.IOPort(ioport_number, loggers['device_controller']) for ioport_number in range(config.number_of_ioports)],
             loggers['device_controller'],
         ),
         'timer': timer.Timer(config.timer_freq, loggers['timer']),
     }, loggers['aldebaran'])
     retval = aldebaran.run()
-    print ''
+    print()
     return retval
 
 

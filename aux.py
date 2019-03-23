@@ -23,14 +23,14 @@ class Log(object):
 
     def log(self, part, msg):
         if part:
-            print '%s[%s] %s%s' % (
+            print('%s[%s] %s%s' % (
                 self.part_colors.get(part, ''),
                 part,
                 msg,
                 self.col(),
-            )
+            ))
         else:
-            print msg
+            print(msg)
 
 
 class SilentLog(object):
@@ -82,7 +82,7 @@ def word_to_str(word, signed=False):
 
 
 def binary_to_str(binary, padding=' '):
-    return padding.join('{:02X}'.format(ord(x)) for x in binary)
+    return padding.join('{:02X}'.format(x) for x in binary)
 
 
 def str_to_int(str):

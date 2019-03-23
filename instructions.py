@@ -48,7 +48,7 @@ def get_instruction_set():
     '''Return list and dict of all valid instructions'''
     # get automatic opcodes (for development):
     inst_list = []
-    for key, value in globals().iteritems():
+    for key, value in globals().items():
         if is_instruction(value):
             inst_list.append(key)
     inst_list.sort()
@@ -360,7 +360,7 @@ class IN(Instruction):
         pos = self.get_operand(1)
         input_data = self.cpu.device_controller.ioports[ioport_number].read_input()
         for idx, value in enumerate(input_data):
-            self.cpu.ram.write_byte(pos + idx, ord(value))
+            self.cpu.ram.write_byte(pos + idx, value)
         self.cpu.log.log('cpu', 'Input data from IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(input_data), len(input_data)))
         self.cpu.set_register('CX', len(input_data))
 
@@ -374,9 +374,9 @@ class OUT(Instruction):
         ioport_number = self.get_operand(0)
         pos = self.get_operand(1)
         cx = self.cpu.get_register('CX')
-        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(''.join([
-            chr(self.cpu.ram.read_byte(pos + idx)) for idx in xrange(cx)
-        ]))
+        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(
+            bytes([self.cpu.ram.read_byte(pos + idx) for idx in range(cx)])
+        )
         self.cpu.log.log('cpu', 'Output data to IOPort %s: %s (%s bytes)' % (ioport_number, aux.binary_to_str(output_data), cx))
 
 
@@ -426,7 +426,7 @@ class DIV(Instruction):
     operand_count = 3
 
     def do(self):
-        self.set_operand(0, self.get_operand(1) / self.get_operand(2))
+        self.set_operand(0, self.get_operand(1) // self.get_operand(2))
 
 
 class IDIV(Instruction):
@@ -435,7 +435,7 @@ class IDIV(Instruction):
     operand_count = 3
 
     def do(self):
-        self.set_signed_operand(0, self.get_signed_operand(1) / self.get_signed_operand(2))
+        self.set_signed_operand(0, self.get_signed_operand(1) // self.get_signed_operand(2))
 
 
 class MOD(Instruction):

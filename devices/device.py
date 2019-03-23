@@ -1,8 +1,8 @@
 import requests
 import struct
 import threading
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 import aux
 import config
@@ -21,37 +21,39 @@ class Device(aux.Hardware):
 
     Specific devices should subclass Device and
     - override run() to define main loop of device
-    - use send_data() for ALD-input
+    - use send_data() and send_text() for ALD-input
     - override handle_ack() for ack of ALD-input
     - override handle_data() for ALD-output
     '''
 
     class RequestHandler(BaseHTTPRequestHandler):
 
+        def _writeline(self, text):
+            self.wfile.write(text.encode('utf-8'))
+            self.wfile.write('\n'.encode('utf-8'))
+
         def do_POST(self):
             command = self.path.lstrip('/')
             self.server.log.log('device', 'Req: %s' % command)
             try:
-                request_body_length = int(self.headers.getheader('content-length'))
+                request_body_length = int(self.headers.get('content-length'))
             except TypeError:
                 self.send_response(411)  # Length Required
                 self.end_headers()
-                self.wfile.write('ERROR: Header "content-length" missing.')
-                self.wfile.write('\n')
+                self._writeline('ERROR: Header "content-length" missing.')
                 return
             try:
                 request_body = self.rfile.read(request_body_length)
             except Exception:
                 self.send_response(400)  # Bad Request
                 self.end_headers()
-                self.wfile.write('ERROR: Cannot parse request.')
-                self.wfile.write('\n')
+                self._writeline('ERROR: Cannot parse request.')
                 return
             self.server.log.log('device', 'Request(%s): %s' % (request_body_length, request_body))
-            response_code, response = self.server.device.handle_input(command, request_body)
+            response_code, response_text = self.server.device.handle_input(command, request_body)
             self.send_response(response_code)
             self.end_headers()
-            self.wfile.write(response)
+            self.wfile.write(response_text.encode('utf-8'))
 
         def log_message(self, format, *args):
             return
@@ -81,7 +83,7 @@ class Device(aux.Hardware):
 
     def _send_request(self, command, data=None):
         if data is None:
-            data = ''
+            data = b''
         r = requests.post(
             self.aldebaran_url,
             data=struct.pack('B', command) + data,
@@ -97,7 +99,7 @@ class Device(aux.Hardware):
                 'BBBB255pH',
                 self.device_type,
                 self.device_id >> 16, (self.device_id >> 8) & 0xFF, self.device_id & 0xFF,
-                self.device_host,
+                self.device_host.encode('utf-8'),
                 self.device_port,
             ))
         except requests.exceptions.ConnectionError:
@@ -138,6 +140,9 @@ class Device(aux.Hardware):
         self.log.log('device', 'Data sent.')
         return 0
 
+    def send_text(self, text):
+        return self.send_data(text.encode('utf-8'))
+
     def start(self):
         self.log.log('device', 'Starting...')
         self.server = self.Server((self.device_host, self.device_port), self.RequestHandler, self, self.log)
@@ -165,7 +170,7 @@ class Device(aux.Hardware):
         return 200, 'Ok\n'
 
     def handle_data(self, data):
-        self.log.log('device', 'Data from ALD: %s' % data)
+        self.log.log('device', 'Data from ALD: %s' % data.decode('utf-8'))
         return 200, 'Ok\n'
 
     def run(self, args):

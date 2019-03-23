@@ -22,8 +22,8 @@ device_registry_size = number_of_devices * 4
 system_interrupts = {
     'device_registered': 0x1E,
     'device_unregistered': 0x1F,
-    'ioport_in': [0x20 + ioport_number for ioport_number in xrange(number_of_ioports)],
-    'ioport_out': [0x30 + ioport_number for ioport_number in xrange(number_of_ioports)],
+    'ioport_in': [0x20 + ioport_number for ioport_number in range(number_of_ioports)],
+    'ioport_out': [0x30 + ioport_number for ioport_number in range(number_of_ioports)],
 }
 system_addresses = {
     'entry_point': 0x0000,

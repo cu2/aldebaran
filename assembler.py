@@ -92,7 +92,7 @@ class Assembler(aux.Hardware):
                     repeat = 1
                 if repeat < 0 or repeat > 255:
                     raise errors.ByteOutOfRangeError(hex(repeat))
-                for _ in xrange(repeat):
+                for _ in range(repeat):
                     for arg in args:
                         if arg[0] == "'" or arg[0] == '"':
                             real_arg = ast.literal_eval(arg)
@@ -135,7 +135,7 @@ class Assembler(aux.Hardware):
                 else:
                     args = arguments
                     repeat = 1
-                for _ in xrange(repeat):
+                for _ in range(repeat):
                     for arg in args:
                         if arg[0] == "'" or arg[0] == '"':
                             real_arg = ast.literal_eval(arg)
@@ -179,11 +179,11 @@ def main(args):
     program = assembler.assemble(starting_ip)
     sys.stdout.write('\n')
     sys.stdout.write('     |')
-    for idx in xrange(16):
+    for idx in range(16):
         sys.stdout.write(' %s' % aux.byte_to_str(idx))
     sys.stdout.write('\n')
     sys.stdout.write('-----+')
-    for idx in xrange(16):
+    for idx in range(16):
         sys.stdout.write('---')
     sys.stdout.write('-')
     for idx, opcode in enumerate(program):
