@@ -109,8 +109,43 @@ A subtimer can be in 3 modes:
 If `speed` is zero, a `ONESHOT` subtimer calls the interrupt at the next beat of the Timer, a `PERIODIC` calls at every beat. In this case `phase` has no meaning. Otherwise `phase` should be between `0` and `speed-1`.
 
 
+
 ## Programming
 
 ### Opcode structure
 
 ### Instruction set
+
+
+
+## How to install
+
+```
+./scripts/setup.sh
+```
+
+Requirements: Python 3.x
+
+
+
+## How to use
+
+Run hello.ald:
+```
+./aldebaran.py
+```
+
+Run any other ALD file:
+```
+./aldebaran.py something.ald
+```
+
+Assemble:
+```
+./assembler.py something.ald
+```
+
+Run a device:
+```
+./run_device.py <device_name> <ioport_number> [<optional_arguments_for_device>]
+```
