@@ -1,7 +1,16 @@
-import errors
+class OutOfRangeError(Exception):
+    pass
 
 
-class Log(object):
+class WordOutOfRangeError(OutOfRangeError):
+    pass
+
+
+class ByteOutOfRangeError(OutOfRangeError):
+    pass
+
+
+class Log:
 
     def __init__(self):
         self.term_colors = True
@@ -33,13 +42,13 @@ class Log(object):
             print(msg)
 
 
-class SilentLog(object):
+class SilentLog:
 
     def log(self, part, msg):
         pass
 
 
-class Hardware(object):
+class Hardware:
 
     def __init__(self, log=None):
         if log:
@@ -53,31 +62,39 @@ def bytes_to_word(high, low):
 
 
 def word_to_bytes(word):
-    if word > 65535:
-        raise errors.WordOutOfRangeError(hex(word))
-    return (
+    if word < 0 or word > 65535:
+        raise WordOutOfRangeError(hex(word))
+    return [
         word >> 8,
         word & 0x00FF,
-    )
+    ]
+
+
+def byte_to_bytes(byte):
+    if byte < 0 or byte > 255:
+        raise ByteOutOfRangeError(hex(byte))
+    return [
+        byte,
+    ]
 
 
 def byte_to_str(byte, signed=False):
     if signed:
         if byte < -128 or byte > 127:
-            raise errors.ByteOutOfRangeError(hex(byte))
+            raise ByteOutOfRangeError(hex(byte))
         return '%02X' % (byte & 0xFF)
     if byte < 0 or byte > 255:
-        raise errors.ByteOutOfRangeError(hex(byte))
+        raise ByteOutOfRangeError(hex(byte))
     return '%02X' % byte
 
 
 def word_to_str(word, signed=False):
     if signed:
         if word < -32768 or word > 32767:
-            raise errors.WordOutOfRangeError(hex(word))
+            raise WordOutOfRangeError(hex(word))
         return '%04X' % (word & 0xFFFF)
     if word < 0 or word > 65535:
-        raise errors.WordOutOfRangeError(hex(word))
+        raise WordOutOfRangeError(hex(word))
     return '%04X' % word
 
 
@@ -87,12 +104,6 @@ def binary_to_str(binary, padding=' '):
 
 def str_to_int(str):
     return int(str, 16)
-
-
-def int_to_str(integer, length):
-    if integer > 0x100**length - 1:
-        raise errors.OutOfRangeError(hex(integer))
-    return ('%0{0}X'.format(length)) % integer
 
 
 def get_low(word):
@@ -113,7 +124,7 @@ def set_high(word, value):
 
 def byte_to_signed(byte):
     if byte < 0 or byte > 255:
-        raise errors.ByteOutOfRangeError(hex(byte))
+        raise ByteOutOfRangeError(hex(byte))
     if byte > 127:
         return byte - 256
     return byte
@@ -121,7 +132,7 @@ def byte_to_signed(byte):
 
 def word_to_signed(word):
     if word < 0 or word > 65535:
-        raise errors.WordOutOfRangeError(hex(word))
+        raise WordOutOfRangeError(hex(word))
     if word > 32767:
         return word - 65536
     return word

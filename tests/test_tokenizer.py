@@ -1,7 +1,7 @@
 import unittest
 
-from tokenizer import Tokenizer, Token, Reference
-from instructions import WORD_REGISTERS, BYTE_REGISTERS
+from utils.tokenizer import Tokenizer, Token, Reference
+from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS
 
 
 class TestTokenizer(unittest.TestCase):

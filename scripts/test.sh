@@ -11,4 +11,4 @@ fi
 
 . "virtualenv/bin/activate"
 
-exec python -m unittest
+exec python -m unittest "$@"
