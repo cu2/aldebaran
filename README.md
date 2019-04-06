@@ -10,7 +10,7 @@ The project is under heavy construction...
 
 ## Architecture
 
-![Architecture](images/aldebaran_architecture.png)
+![Architecture](docs/aldebaran_architecture.png)
 
 
 ### Clock
