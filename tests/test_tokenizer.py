@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import Mock
 
-from utils.tokenizer import Tokenizer, Token, Reference
+from utils.tokenizer import Tokenizer, Token, Reference,\
+    UnexpectedCharacterError, InvalidStringLiteralError
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS
 
 
@@ -13,12 +15,14 @@ class TestTokenizer(unittest.TestCase):
             'word_registers': WORD_REGISTERS,
             'byte_registers': BYTE_REGISTERS,
         })
+        self.tokenizer._log_error = Mock()
 
     def test_label_alone(self):
         tokens = self.tokenizer.tokenize('labelname:')
         self.assertListEqual(tokens, [
             Token('LABEL', 'labelname'),
         ])
+        self.assertEqual(self.tokenizer._log_error.call_count, 0)
 
     def test_code_alone(self):
         tokens = self.tokenizer.tokenize('mov ax 0100')
@@ -56,7 +60,7 @@ class TestTokenizer(unittest.TestCase):
         ])
 
     def test_every_token_type(self):
-        tokens = self.tokenizer.tokenize('label: other_label: MOV AX AL 1234 12 ^1234 [AX] [AX+12]B [1234]B [1234+56] [1234+AX] JMP third_label DEF "hello world with kinda # comment"  # actual comment')
+        tokens = self.tokenizer.tokenize('label: other_label: MOV AX AL 1234 12 ^1234 ^label [AX] [AX+12]B [AX-12]B [1234]B [label]B [1234+56] [label+56] [1234+AX] [label+AX] JMP third_label DEF "hello world with kinda # comment"  # actual comment')
         self.assertListEqual(tokens, [
             Token('LABEL', 'label'),
             Token('LABEL', 'other_label'),
@@ -66,14 +70,29 @@ class TestTokenizer(unittest.TestCase):
             Token('WORD_LITERAL', 4660),
             Token('BYTE_LITERAL', 18),
             Token('ADDRESS_WORD_LITERAL', 4660),
+            Token('ADDRESS_LABEL', 'label'),
             Token('ABS_REF_REG', Reference('AX', None, 'W')),
             Token('ABS_REF_REG', Reference('AX', 18, 'B')),
+            Token('ABS_REF_REG', Reference('AX', -18, 'B')),
             Token('REL_REF_WORD', Reference(4660, None, 'B')),
+            Token('REL_REF_LABEL', Reference('label', None, 'B')),
             Token('REL_REF_WORD_BYTE', Reference(4660, 86, 'W')),
+            Token('REL_REF_LABEL_BYTE', Reference('label', 86, 'W')),
             Token('REL_REF_WORD_REG', Reference(4660, 'AX', 'W')),
+            Token('REL_REF_LABEL_REG', Reference('label', 'AX', 'W')),
             Token('INSTRUCTION', 'JMP'),
             Token('IDENTIFIER', 'third_label'),
             Token('MACRO', 'DEF'),
             Token('STRING_LITERAL', 'hello world with kinda # comment'),
             Token('COMMENT', ' actual comment')
         ])
+
+    def test_error_unexpected_char(self):
+        with self.assertRaises(UnexpectedCharacterError):
+            self.tokenizer.tokenize('label: mov ?')
+        self.assertEqual(self.tokenizer._log_error.call_count, 1)
+
+    def test_error_invalid_string_literal(self):
+        with self.assertRaises(InvalidStringLiteralError):
+            self.tokenizer.tokenize('label: mov \'single quote \\\' between single quotes\'')
+        self.assertEqual(self.tokenizer._log_error.call_count, 1)

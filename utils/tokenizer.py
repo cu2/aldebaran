@@ -45,11 +45,14 @@ class Tokenizer:
         }
         self.tokenizer_regex = re.compile(r'|'.join(r'(?P<{}>{})'.format(token_type.name, token_type.regex) for token_type in self.token_types))
 
-    def _raise_error(self, code, pos, error_message, exception):
+    def _log_error(self, code, pos, error_message):
         # TODO: log instead of print
         print('ERROR:', error_message)
         print(code)
         print(' ' * pos + '^')
+
+    def _raise_error(self, code, pos, error_message, exception):
+        self._log_error(code, pos, error_message)
         raise exception(error_message)
 
     def _get_raw_token_value(self, code, m):
@@ -80,22 +83,37 @@ class Tokenizer:
         return int(m.group()[1:], 16)
 
     def _get_ref_value(self, code, m, ref_type):
-        base = m.group('base_{}'.format(ref_type))
+        base_subgroup_name = 'base_{}'.format(ref_type)
+        base = m.group(base_subgroup_name)
         try:
             offset = m.group('offset_{}'.format(ref_type))
         except Exception:
             offset = None
+        try:
+            offset_sign = m.group('offset_sign_{}'.format(ref_type))
+        except Exception:
+            offset_sign = None
         length = 'B' if m.group('length_{}'.format(ref_type)) == 'B' else 'W'
         if ref_type == 'abs_reg':
             if offset is not None:
-                offset=int(offset, 16)
+                if offset_sign == '+':
+                    offset = int(offset, 16)
+                else:
+                    offset = -int(offset, 16)
         elif ref_type == 'word_reg':
-            base=int(base, 16)
+            base = int(base, 16)
         elif ref_type == 'word_byte':
-            base=int(base, 16)
-            offset=int(offset, 16)
+            base = int(base, 16)
+            offset = int(offset, 16)
         elif ref_type == 'word':
-            base=int(base, 16)
+            base = int(base, 16)
+        elif ref_type == 'label_reg':
+            base = self._get_subgroup_value(code, m, base_subgroup_name)
+        elif ref_type == 'label_byte':
+            base = self._get_subgroup_value(code, m, base_subgroup_name)
+            offset = int(offset, 16)
+        elif ref_type == 'label':
+            base = self._get_subgroup_value(code, m, base_subgroup_name)
         else:
             self._raise_error(
                 code, m.start(),
@@ -106,6 +124,7 @@ class Tokenizer:
 
     def _get_token_types(self):
         basic_patterns = {
+            'identifier': r'[A-Za-z][a-zA-Z0-9_]*',
             'word_literal': r'[\da-fA-F]{4}',
             'byte_literal': r'[\da-fA-F]{2}',
             'word_reg': r'({})'.format(r'|'.join(self.word_registers)),
@@ -114,7 +133,7 @@ class Tokenizer:
         token_types = [
             TokenType(
                 'LABEL',
-                r'(?P<label_value>[A-Za-z][a-zA-Z0-9_\-]*):',
+                r'(?P<label_value>{}):'.format(basic_patterns['identifier']),
                 lambda code, m: self._get_subgroup_value(code, m, 'label_value'),
             ),
             TokenType(
@@ -153,6 +172,11 @@ class Tokenizer:
                 self._get_address_hex_literal_value,
             ),
             TokenType(
+                'ADDRESS_LABEL',
+                r'\^(?P<address_label_value>{})'.format(basic_patterns['identifier']),
+                lambda code, m: self._get_subgroup_value(code, m, 'address_label_value'),
+            ),
+            TokenType(
                 'WORD_LITERAL',
                 basic_patterns['word_literal'],
                 self._get_hex_literal_value,
@@ -164,7 +188,7 @@ class Tokenizer:
             ),
             TokenType(
                 'ABS_REF_REG',
-                r'\[(?P<base_abs_reg>{})(\+(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(basic_patterns['word_reg'], basic_patterns['byte_literal']),
+                r'\[(?P<base_abs_reg>{})((?P<offset_sign_abs_reg>[+-])(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(basic_patterns['word_reg'], basic_patterns['byte_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'abs_reg'),
             ),
             TokenType(
@@ -173,9 +197,19 @@ class Tokenizer:
                 lambda code, m: self._get_ref_value(code, m, 'word_reg'),
             ),
             TokenType(
+                'REL_REF_LABEL_REG',
+                r'\[(?P<base_label_reg>{})\+(?P<offset_label_reg>{})\](?P<length_label_reg>B?)'.format(basic_patterns['identifier'], basic_patterns['word_reg']),
+                lambda code, m: self._get_ref_value(code, m, 'label_reg'),
+            ),
+            TokenType(
                 'REL_REF_WORD_BYTE',
                 r'\[(?P<base_word_byte>{})\+(?P<offset_word_byte>{})\](?P<length_word_byte>B?)'.format(basic_patterns['word_literal'], basic_patterns['byte_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'word_byte'),
+            ),
+            TokenType(
+                'REL_REF_LABEL_BYTE',
+                r'\[(?P<base_label_byte>{})\+(?P<offset_label_byte>{})\](?P<length_label_byte>B?)'.format(basic_patterns['identifier'], basic_patterns['byte_literal']),
+                lambda code, m: self._get_ref_value(code, m, 'label_byte'),
             ),
             TokenType(
                 'REL_REF_WORD',
@@ -183,8 +217,13 @@ class Tokenizer:
                 lambda code, m: self._get_ref_value(code, m, 'word'),
             ),
             TokenType(
+                'REL_REF_LABEL',
+                r'\[(?P<base_label>{})\](?P<length_label>B?)'.format(basic_patterns['identifier']),
+                lambda code, m: self._get_ref_value(code, m, 'label'),
+            ),
+            TokenType(
                 'IDENTIFIER',
-                r'[A-Za-z][A-Za-z0-9_\-]*',
+                basic_patterns['identifier'],
                 self._get_original_token_value,
             ),
             TokenType(
