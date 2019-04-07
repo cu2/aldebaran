@@ -8,7 +8,7 @@ from instructions.operands import get_register_code_by_name, get_register_name_b
     OPTYPE_REL_REF_WORD, OPTYPE_REL_REF_WORD_BYTE, OPTYPE_REL_REF_WORD_REG,\
     InvalidTokenLengthError,\
     parse_operand_buffer, InvalidOperandError, InsufficientOperandBufferError
-from utils.tokenizer import Token, Reference, UnknownTokenError
+from utils.tokenizer import Token, Reference, TokenType, UnknownTokenError
 from utils.utils import WordOutOfRangeError, ByteOutOfRangeError
 
 
@@ -45,69 +45,69 @@ class TestGetOpbyte(unittest.TestCase):
 class TestGetOperandOpcode(unittest.TestCase):
 
     def test_literal(self):
-        self.assertListEqual(get_operand_opcode(Token('WORD_LITERAL', 65535, 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.WORD_LITERAL, 65535, 0)), [
             get_opbyte(OPLEN_WORD, OPTYPE_VALUE),
             0xFF, 0xFF,
         ])
         with self.assertRaises(WordOutOfRangeError):
-            get_operand_opcode(Token('WORD_LITERAL', 65536, 0))
-        self.assertListEqual(get_operand_opcode(Token('BYTE_LITERAL', 255, 0)), [
+            get_operand_opcode(Token(TokenType.WORD_LITERAL, 65536, 0))
+        self.assertListEqual(get_operand_opcode(Token(TokenType.BYTE_LITERAL, 255, 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_VALUE),
             0xFF,
         ])
         with self.assertRaises(ByteOutOfRangeError):
-            get_operand_opcode(Token('BYTE_LITERAL', -1, 0))
-        self.assertListEqual(get_operand_opcode(Token('ADDRESS_WORD_LITERAL', 65535, 0)), [
+            get_operand_opcode(Token(TokenType.BYTE_LITERAL, -1, 0))
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ADDRESS_WORD_LITERAL, 65535, 0)), [
             get_opbyte(OPLEN_WORD, OPTYPE_ADDRESS),
             0xFF, 0xFF,
         ])
 
     def test_register(self):
-        self.assertListEqual(get_operand_opcode(Token('WORD_REGISTER', 'AX', 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.WORD_REGISTER, 'AX', 0)), [
             get_opbyte(OPLEN_WORD, OPTYPE_REGISTER, 'AX'),
         ])
-        self.assertListEqual(get_operand_opcode(Token('BYTE_REGISTER', 'AL', 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.BYTE_REGISTER, 'AL', 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REGISTER, 'AL'),
         ])
-        self.assertListEqual(get_operand_opcode(Token('BYTE_REGISTER', 'AH', 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.BYTE_REGISTER, 'AH', 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REGISTER, 'AH'),
         ])
         with self.assertRaises(InvalidRegisterNameError):
-            get_operand_opcode(Token('WORD_REGISTER', 'XX', 0))
+            get_operand_opcode(Token(TokenType.WORD_REGISTER, 'XX', 0))
 
     def test_abs_ref(self):
-        self.assertListEqual(get_operand_opcode(Token('ABS_REF_REG', Reference('BX', 0, 'B'), 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 0, 'B'), 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_ABS_REF_REG, 'BX'),
             0x00,
         ])
-        self.assertListEqual(get_operand_opcode(Token('ABS_REF_REG', Reference('BX', 255, 'W'), 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 255, 'W'), 0)), [
             get_opbyte(OPLEN_WORD, OPTYPE_ABS_REF_REG, 'BX'),
             0xFF,
         ])
         with self.assertRaises(InvalidRegisterNameError):
-            get_operand_opcode(Token('ABS_REF_REG', Reference('XX', 0, 'W'), 0))
+            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('XX', 0, 'W'), 0))
         with self.assertRaises(ByteOutOfRangeError):
-            get_operand_opcode(Token('ABS_REF_REG', Reference('BX', 256, 'W'), 0))
+            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 256, 'W'), 0))
         with self.assertRaises(InvalidTokenLengthError):
-            get_operand_opcode(Token('ABS_REF_REG', Reference('AX', 0, '?'), 0))
+            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('AX', 0, '?'), 0))
 
     def test_rel_ref(self):
-        self.assertListEqual(get_operand_opcode(Token('REL_REF_WORD', Reference(65535, 0, 'B'), 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD, Reference(65535, 0, 'B'), 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD),
             0xFF, 0xFF,
         ])
         with self.assertRaises(WordOutOfRangeError):
-            get_operand_opcode(Token('REL_REF_WORD', Reference(65536, 0, 'B'), 0))
-        self.assertListEqual(get_operand_opcode(Token('REL_REF_WORD_BYTE', Reference(65535, 255, 'B'), 0)), [
+            get_operand_opcode(Token(TokenType.REL_REF_WORD, Reference(65536, 0, 'B'), 0))
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_BYTE, Reference(65535, 255, 'B'), 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_BYTE),
             0xFF, 0xFF, 0xFF,
         ])
-        self.assertListEqual(get_operand_opcode(Token('REL_REF_WORD_REG', Reference(65535, 'BX', 'B'), 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_REG, Reference(65535, 'BX', 'B'), 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_REG, 'BX'),
             0xFF, 0xFF,
         ])
         with self.assertRaises(InvalidRegisterNameError):
-            get_operand_opcode(Token('REL_REF_WORD_REG', Reference(65535, 'XX', 'B'), 0))
+            get_operand_opcode(Token(TokenType.REL_REF_WORD_REG, Reference(65535, 'XX', 'B'), 0))
 
     def test_other(self):
         with self.assertRaises(UnknownTokenError):

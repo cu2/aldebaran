@@ -1,7 +1,7 @@
 from collections import namedtuple
 
 from utils import utils
-from utils.tokenizer import UnknownTokenError
+from utils.tokenizer import TokenType, UnknownTokenError
 
 
 Operand = namedtuple('Operand', ['oplen', 'optype', 'opreg', 'opvalue', 'opbase', 'opoffset'])
@@ -102,27 +102,27 @@ def get_opbyte(oplen, optype, opreg_name=None):
 
 def get_operand_opcode(token):
     '''Return opcode of operand'''
-    if token.type == 'WORD_LITERAL':
+    if token.type == TokenType.WORD_LITERAL:
         return [
             get_opbyte(OPLEN_WORD, OPTYPE_VALUE)
         ] + utils.word_to_bytes(token.value)
-    if token.type == 'BYTE_LITERAL':
+    if token.type == TokenType.BYTE_LITERAL:
         return [
             get_opbyte(OPLEN_BYTE, OPTYPE_VALUE)
         ] + utils.byte_to_bytes(token.value)
-    if token.type == 'ADDRESS_WORD_LITERAL':
+    if token.type == TokenType.ADDRESS_WORD_LITERAL:
         return [
             get_opbyte(OPLEN_WORD, OPTYPE_ADDRESS)
         ] + utils.word_to_bytes(token.value)
-    if token.type == 'WORD_REGISTER':
+    if token.type == TokenType.WORD_REGISTER:
         return [
             get_opbyte(OPLEN_WORD, OPTYPE_REGISTER, token.value)
         ]
-    if token.type == 'BYTE_REGISTER':
+    if token.type == TokenType.BYTE_REGISTER:
         return [
             get_opbyte(OPLEN_BYTE, OPTYPE_REGISTER, token.value)
         ]
-    if token.type in {'ABS_REF_REG', 'REL_REF_WORD', 'REL_REF_WORD_BYTE', 'REL_REF_WORD_REG'}:
+    if token.type in {TokenType.ABS_REF_REG, TokenType.REL_REF_WORD, TokenType.REL_REF_WORD_BYTE, TokenType.REL_REF_WORD_REG}:
         if token.value.length == 'B':
             oplen = OPLEN_BYTE
         elif token.value.length == 'W':
@@ -130,24 +130,24 @@ def get_operand_opcode(token):
         else:
             raise InvalidTokenLengthError()
         optype = {
-            'ABS_REF_REG': OPTYPE_ABS_REF_REG,
-            'REL_REF_WORD': OPTYPE_REL_REF_WORD,
-            'REL_REF_WORD_BYTE': OPTYPE_REL_REF_WORD_BYTE,
-            'REL_REF_WORD_REG': OPTYPE_REL_REF_WORD_REG,
+            TokenType.ABS_REF_REG: OPTYPE_ABS_REF_REG,
+            TokenType.REL_REF_WORD: OPTYPE_REL_REF_WORD,
+            TokenType.REL_REF_WORD_BYTE: OPTYPE_REL_REF_WORD_BYTE,
+            TokenType.REL_REF_WORD_REG: OPTYPE_REL_REF_WORD_REG,
         }[token.type]
-        if token.type == 'ABS_REF_REG':
+        if token.type == TokenType.ABS_REF_REG:
             opreg = token.value.base
-        elif token.type == 'REL_REF_WORD_REG':
+        elif token.type == TokenType.REL_REF_WORD_REG:
             opreg = token.value.offset
         else:
             opreg = None
-        if token.type == 'ABS_REF_REG':
+        if token.type == TokenType.ABS_REF_REG:
             oprest = utils.byte_to_bytes(token.value.offset)
-        elif token.type == 'REL_REF_WORD':
+        elif token.type == TokenType.REL_REF_WORD:
             oprest = utils.word_to_bytes(token.value.base)
-        elif token.type == 'REL_REF_WORD_BYTE':
+        elif token.type == TokenType.REL_REF_WORD_BYTE:
             oprest = utils.word_to_bytes(token.value.base) + utils.byte_to_bytes(token.value.offset)
-        elif token.type == 'REL_REF_WORD_REG':
+        elif token.type == TokenType.REL_REF_WORD_REG:
             oprest = utils.word_to_bytes(token.value.base)
         return [
             get_opbyte(oplen, optype, opreg)

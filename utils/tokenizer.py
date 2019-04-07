@@ -1,11 +1,37 @@
 import ast
 import re
 from collections import namedtuple
+from enum import Enum
 
 
 Token = namedtuple('Token', ['type', 'value', 'pos'])
-TokenType = namedtuple('TokenType', ['name', 'regex', 'value'])
+TokenRule = namedtuple('TokenRule', ['token_type', 'regex', 'value'])
 Reference = namedtuple('Reference', ['base', 'offset', 'length'])
+
+
+TokenType = Enum('TokenType', [
+    'LABEL',
+    'STRING_LITERAL',
+    'COMMENT',
+    'INSTRUCTION',
+    'MACRO',
+    'WORD_REGISTER',
+    'BYTE_REGISTER',
+    'ADDRESS_WORD_LITERAL',
+    'ADDRESS_LABEL',
+    'WORD_LITERAL',
+    'BYTE_LITERAL',
+    'ABS_REF_REG',
+    'REL_REF_WORD_REG',
+    'REL_REF_LABEL_REG',
+    'REL_REF_WORD_BYTE',
+    'REL_REF_LABEL_BYTE',
+    'REL_REF_WORD',
+    'REL_REF_LABEL',
+    'IDENTIFIER',
+    'WHITESPACE',
+    'UNEXPECTED',
+])
 
 
 class TokenizerError(Exception):
@@ -38,12 +64,15 @@ class Tokenizer:
         self.macro_names = set(keywords['macro_names'])
         self.word_registers = set(keywords['word_registers'])
         self.byte_registers = set(keywords['byte_registers'])
-        self.token_types = self._get_token_types()
-        self.token_type_dict = {
-            token_type.name: token_type
-            for token_type in self.token_types
+        self.token_rules = self._get_token_rules()
+        self.token_rule_dict = {
+            token_rule.token_type.name: token_rule
+            for token_rule in self.token_rules
         }
-        self.tokenizer_regex = re.compile(r'|'.join(r'(?P<{}>{})'.format(token_type.name, token_type.regex) for token_type in self.token_types))
+        self.tokenizer_regex = re.compile(r'|'.join(
+            r'(?P<{}>{})'.format(token_rule.token_type.name, token_rule.regex)
+            for token_rule in self.token_rules
+        ))
 
     def _log_error(self, code, pos, error_message):
         # TODO: log instead of print
@@ -122,7 +151,7 @@ class Tokenizer:
             )
         return Reference(base, offset, length)
 
-    def _get_token_types(self):
+    def _get_token_rules(self):
         basic_patterns = {
             'identifier': r'[A-Za-z][a-zA-Z0-9_]*',
             'word_literal': r'[\da-fA-F]{4}',
@@ -130,114 +159,114 @@ class Tokenizer:
             'word_reg': r'({})'.format(r'|'.join(self.word_registers)),
             'byte_reg': r'({})'.format(r'|'.join(self.byte_registers)),
         }
-        token_types = [
-            TokenType(
-                'LABEL',
+        token_rules = [
+            TokenRule(
+                TokenType.LABEL,
                 r'(?P<label_value>{}):'.format(basic_patterns['identifier']),
                 lambda code, m: self._get_subgroup_value(code, m, 'label_value'),
             ),
-            TokenType(
-                'STRING_LITERAL',
+            TokenRule(
+                TokenType.STRING_LITERAL,
                 r'''("(?:[^\"]|\.)*"|'(?:[^\']|\.)*')''',  # TODO: make it match '\''
                 self._get_string_literal_value,
             ),
-            TokenType(
-                'COMMENT',
+            TokenRule(
+                TokenType.COMMENT,
                 r'\#(?P<comment_value>.*)',
                 lambda code, m: self._get_subgroup_value(code, m, 'comment_value'),
             ),
-            TokenType(
-                'INSTRUCTION',
+            TokenRule(
+                TokenType.INSTRUCTION,
                 r'({})'.format(r'|'.join(self.instruction_names)),
                 self._get_raw_token_value,
             ),
-            TokenType(
-                'MACRO',
+            TokenRule(
+                TokenType.MACRO,
                 r'({})'.format(r'|'.join(self.macro_names)),
                 self._get_raw_token_value,
             ),
-            TokenType(
-                'WORD_REGISTER',
+            TokenRule(
+                TokenType.WORD_REGISTER,
                 basic_patterns['word_reg'],
                 self._get_raw_token_value,
             ),
-            TokenType(
-                'BYTE_REGISTER',
+            TokenRule(
+                TokenType.BYTE_REGISTER,
                 basic_patterns['byte_reg'],
                 self._get_raw_token_value,
             ),
-            TokenType(
-                'ADDRESS_WORD_LITERAL',
+            TokenRule(
+                TokenType.ADDRESS_WORD_LITERAL,
                 r'\^{}'.format(basic_patterns['word_literal']),
                 self._get_address_hex_literal_value,
             ),
-            TokenType(
-                'ADDRESS_LABEL',
+            TokenRule(
+                TokenType.ADDRESS_LABEL,
                 r'\^(?P<address_label_value>{})'.format(basic_patterns['identifier']),
                 lambda code, m: self._get_subgroup_value(code, m, 'address_label_value'),
             ),
-            TokenType(
-                'WORD_LITERAL',
+            TokenRule(
+                TokenType.WORD_LITERAL,
                 basic_patterns['word_literal'],
                 self._get_hex_literal_value,
             ),
-            TokenType(
-                'BYTE_LITERAL',
+            TokenRule(
+                TokenType.BYTE_LITERAL,
                 basic_patterns['byte_literal'],
                 self._get_hex_literal_value,
             ),
-            TokenType(
-                'ABS_REF_REG',
+            TokenRule(
+                TokenType.ABS_REF_REG,
                 r'\[(?P<base_abs_reg>{})((?P<offset_sign_abs_reg>[+-])(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(basic_patterns['word_reg'], basic_patterns['byte_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'abs_reg'),
             ),
-            TokenType(
-                'REL_REF_WORD_REG',
+            TokenRule(
+                TokenType.REL_REF_WORD_REG,
                 r'\[(?P<base_word_reg>{})\+(?P<offset_word_reg>{})\](?P<length_word_reg>B?)'.format(basic_patterns['word_literal'], basic_patterns['word_reg']),
                 lambda code, m: self._get_ref_value(code, m, 'word_reg'),
             ),
-            TokenType(
-                'REL_REF_LABEL_REG',
+            TokenRule(
+                TokenType.REL_REF_LABEL_REG,
                 r'\[(?P<base_label_reg>{})\+(?P<offset_label_reg>{})\](?P<length_label_reg>B?)'.format(basic_patterns['identifier'], basic_patterns['word_reg']),
                 lambda code, m: self._get_ref_value(code, m, 'label_reg'),
             ),
-            TokenType(
-                'REL_REF_WORD_BYTE',
+            TokenRule(
+                TokenType.REL_REF_WORD_BYTE,
                 r'\[(?P<base_word_byte>{})\+(?P<offset_word_byte>{})\](?P<length_word_byte>B?)'.format(basic_patterns['word_literal'], basic_patterns['byte_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'word_byte'),
             ),
-            TokenType(
-                'REL_REF_LABEL_BYTE',
+            TokenRule(
+                TokenType.REL_REF_LABEL_BYTE,
                 r'\[(?P<base_label_byte>{})\+(?P<offset_label_byte>{})\](?P<length_label_byte>B?)'.format(basic_patterns['identifier'], basic_patterns['byte_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'label_byte'),
             ),
-            TokenType(
-                'REL_REF_WORD',
+            TokenRule(
+                TokenType.REL_REF_WORD,
                 r'\[(?P<base_word>{})\](?P<length_word>B?)'.format(basic_patterns['word_literal']),
                 lambda code, m: self._get_ref_value(code, m, 'word'),
             ),
-            TokenType(
-                'REL_REF_LABEL',
+            TokenRule(
+                TokenType.REL_REF_LABEL,
                 r'\[(?P<base_label>{})\](?P<length_label>B?)'.format(basic_patterns['identifier']),
                 lambda code, m: self._get_ref_value(code, m, 'label'),
             ),
-            TokenType(
-                'IDENTIFIER',
+            TokenRule(
+                TokenType.IDENTIFIER,
                 basic_patterns['identifier'],
                 self._get_original_token_value,
             ),
-            TokenType(
-                'WHITESPACE',
+            TokenRule(
+                TokenType.WHITESPACE,
                 r'\s+',
                 lambda code, m: None,
             ),
-            TokenType(
-                'UNEXPECTED',
+            TokenRule(
+                TokenType.UNEXPECTED,
                 r'.',
                 lambda code, m: None,
             ),
         ]
-        return token_types
+        return token_rules
 
     def tokenize(self, code):
         tokens = []
@@ -251,13 +280,13 @@ class Tokenizer:
                 )
             if token_type_name == 'WHITESPACE':
                 continue
-            if token_type_name not in self.token_type_dict:
+            if token_type_name not in self.token_rule_dict:
                 self._raise_error(
                     code, m.start(),
                     'Unknown token: {}'.format(token_type_name),
                     UnknownTokenError,
                 )
-            token_type = self.token_type_dict[token_type_name]
-            token_value = token_type.value(code, m)
-            tokens.append(Token(token_type_name, token_value, m.start()))
+            token_rule = self.token_rule_dict[token_type_name]
+            token_value = token_rule.value(code, m)
+            tokens.append(Token(token_rule.token_type, token_value, m.start()))
         return tokens
