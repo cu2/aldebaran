@@ -3,7 +3,7 @@ import re
 from collections import namedtuple
 
 
-Token = namedtuple('Token', ['type', 'value'])
+Token = namedtuple('Token', ['type', 'value', 'pos'])
 TokenType = namedtuple('TokenType', ['name', 'regex', 'value'])
 Reference = namedtuple('Reference', ['base', 'offset', 'length'])
 
@@ -259,5 +259,5 @@ class Tokenizer:
                 )
             token_type = self.token_type_dict[token_type_name]
             token_value = token_type.value(code, m)
-            tokens.append(Token(token_type_name, token_value))
+            tokens.append(Token(token_type_name, token_value, m.start()))
         return tokens

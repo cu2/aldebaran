@@ -20,71 +20,71 @@ class TestTokenizer(unittest.TestCase):
     def test_label_alone(self):
         tokens = self.tokenizer.tokenize('labelname:')
         self.assertListEqual(tokens, [
-            Token('LABEL', 'labelname'),
+            Token('LABEL', 'labelname', 0),
         ])
         self.assertEqual(self.tokenizer._log_error.call_count, 0)
 
     def test_code_alone(self):
         tokens = self.tokenizer.tokenize('mov ax 0100')
         self.assertListEqual(tokens, [
-            Token('INSTRUCTION', 'MOV'),
-            Token('WORD_REGISTER', 'AX'),
-            Token('WORD_LITERAL', 256),
+            Token('INSTRUCTION', 'MOV', 0),
+            Token('WORD_REGISTER', 'AX', 4),
+            Token('WORD_LITERAL', 256, 7),
         ])
 
     def test_label_code_comment(self):
         tokens = self.tokenizer.tokenize('labelname: mov ax 0100  # comment text')
         self.assertListEqual(tokens, [
-            Token('LABEL', 'labelname'),
-            Token('INSTRUCTION', 'MOV'),
-            Token('WORD_REGISTER', 'AX'),
-            Token('WORD_LITERAL', 256),
-            Token('COMMENT', ' comment text'),
+            Token('LABEL', 'labelname', 0),
+            Token('INSTRUCTION', 'MOV', 11),
+            Token('WORD_REGISTER', 'AX', 15),
+            Token('WORD_LITERAL', 256, 18),
+            Token('COMMENT', ' comment text', 24),
         ])
 
     def test_random_case(self):
         tokens = self.tokenizer.tokenize('LabeL: mOv aX 00fF')
         self.assertListEqual(tokens, [
-            Token('LABEL', 'LabeL'),
-            Token('INSTRUCTION', 'MOV'),
-            Token('WORD_REGISTER', 'AX'),
-            Token('WORD_LITERAL', 255),
+            Token('LABEL', 'LabeL', 0),
+            Token('INSTRUCTION', 'MOV', 7),
+            Token('WORD_REGISTER', 'AX', 11),
+            Token('WORD_LITERAL', 255, 14),
         ])
 
     def test_random_whitespace(self):
         tokens = self.tokenizer.tokenize('			mov  	  ax      	   	    0100  			      ')
         self.assertListEqual(tokens, [
-            Token('INSTRUCTION', 'MOV'),
-            Token('WORD_REGISTER', 'AX'),
-            Token('WORD_LITERAL', 256),
+            Token('INSTRUCTION', 'MOV', 3),
+            Token('WORD_REGISTER', 'AX', 11),
+            Token('WORD_LITERAL', 256, 28),
         ])
 
     def test_every_token_type(self):
         tokens = self.tokenizer.tokenize('label: other_label: MOV AX AL 1234 12 ^1234 ^label [AX] [AX+12]B [AX-12]B [1234]B [label]B [1234+56] [label+56] [1234+AX] [label+AX] JMP third_label DEF "hello world with kinda # comment"  # actual comment')
         self.assertListEqual(tokens, [
-            Token('LABEL', 'label'),
-            Token('LABEL', 'other_label'),
-            Token('INSTRUCTION', 'MOV'),
-            Token('WORD_REGISTER', 'AX'),
-            Token('BYTE_REGISTER', 'AL'),
-            Token('WORD_LITERAL', 4660),
-            Token('BYTE_LITERAL', 18),
-            Token('ADDRESS_WORD_LITERAL', 4660),
-            Token('ADDRESS_LABEL', 'label'),
-            Token('ABS_REF_REG', Reference('AX', None, 'W')),
-            Token('ABS_REF_REG', Reference('AX', 18, 'B')),
-            Token('ABS_REF_REG', Reference('AX', -18, 'B')),
-            Token('REL_REF_WORD', Reference(4660, None, 'B')),
-            Token('REL_REF_LABEL', Reference('label', None, 'B')),
-            Token('REL_REF_WORD_BYTE', Reference(4660, 86, 'W')),
-            Token('REL_REF_LABEL_BYTE', Reference('label', 86, 'W')),
-            Token('REL_REF_WORD_REG', Reference(4660, 'AX', 'W')),
-            Token('REL_REF_LABEL_REG', Reference('label', 'AX', 'W')),
-            Token('INSTRUCTION', 'JMP'),
-            Token('IDENTIFIER', 'third_label'),
-            Token('MACRO', 'DEF'),
-            Token('STRING_LITERAL', 'hello world with kinda # comment'),
-            Token('COMMENT', ' actual comment')
+            Token('LABEL', 'label', 0),
+            Token('LABEL', 'other_label', 7),
+            Token('INSTRUCTION', 'MOV', 20),
+            Token('WORD_REGISTER', 'AX', 24),
+            Token('BYTE_REGISTER', 'AL', 27),
+            Token('WORD_LITERAL', 4660, 30),
+            Token('BYTE_LITERAL', 18, 35),
+            Token('ADDRESS_WORD_LITERAL', 4660, 38),
+            Token('ADDRESS_LABEL', 'label', 44),
+            Token('ABS_REF_REG', Reference('AX', None, 'W'), 51),
+            Token('ABS_REF_REG', Reference('AX', 18, 'B'), 56),
+            Token('ABS_REF_REG', Reference('AX', -18, 'B'), 65),
+            Token('REL_REF_WORD', Reference(4660, None, 'B'), 74),
+            Token('REL_REF_LABEL', Reference('label', None, 'B'), 82),
+            Token('REL_REF_WORD_BYTE', Reference(4660, 86, 'W'), 91),
+            Token('REL_REF_LABEL_BYTE', Reference('label', 86, 'W'), 101),
+            Token('REL_REF_WORD_REG', Reference(4660, 'AX', 'W'), 112),
+            Token('REL_REF_LABEL_REG', Reference('label', 'AX', 'W'), 122),
+            Token('INSTRUCTION', 'JMP', 133),
+            Token('IDENTIFIER', 'third_label', 137),
+            Token('MACRO', 'DEF', 149),
+            Token('STRING_LITERAL', 'hello world with kinda # comment', 153),
+            Token('COMMENT', ' actual comment', 189)
         ])
 
     def test_error_unexpected_char(self):
