@@ -2,39 +2,39 @@
 
 
 MAIN:
-        SETINT 20 TERMINAL_HANDLER_0  # ioport_in[0]
-        SETINT 21 TERMINAL_HANDLER_1  # ioport_in[0]
-        SETINT 30 OUTPUT_HANDLER_0  # ioport_out[0]
-        SETINT 31 OUTPUT_HANDLER_1  # ioport_out[1]
+        SETINT 0x20 TERMINAL_HANDLER_0  # ioport_in[0]
+        SETINT 0x21 TERMINAL_HANDLER_1  # ioport_in[0]
+        SETINT 0x30 OUTPUT_HANDLER_0  # ioport_out[0]
+        SETINT 0x31 OUTPUT_HANDLER_1  # ioport_out[1]
 HALTLOOP:
         HLT
         JMP HALTLOOP
 
 
 TERMINAL_HANDLER_0:  # if terminal 0 sends something, forward it to terminal 1
-        IN 00 INPUT_BUFFER_0
-        OUT 01 INPUT_BUFFER_0
+        IN 0x00 INPUT_BUFFER_0
+        OUT 0x01 INPUT_BUFFER_0
         IRET
 
 
 TERMINAL_HANDLER_1:
-        IN 01 INPUT_BUFFER_1
-        OUT 00 INPUT_BUFFER_1
+        IN 0x01 INPUT_BUFFER_1
+        OUT 0x00 INPUT_BUFFER_1
         IRET
 
 
 OUTPUT_HANDLER_0:  # send error message to terminal 1, if terminal 0 is disconnected
-        JZ [FDB0] OK_0
-        MOV CX 05
-        OUT 01 ERROR_MESSAGE
+        JZ [0xFDB0] OK_0
+        MOV CX 0x05
+        OUT 0x01 ERROR_MESSAGE
 OK_0:
         IRET
 
 
 OUTPUT_HANDLER_1:
-        JZ [FDB1] OK_1
-        MOV CX 05
-        OUT 00 ERROR_MESSAGE
+        JZ [0xFDB1] OK_1
+        MOV CX 0x05
+        OUT 0x00 ERROR_MESSAGE
 OK_1:
         IRET
 
@@ -42,10 +42,10 @@ OK_1:
 # DATA
 
 INPUT_BUFFER_0:
-        DATN FF 00
+        DATN 0xFF 0x00
 
 INPUT_BUFFER_1:
-        DATN FF 00
+        DATN 0xFF 0x00
 
 ERROR_MESSAGE:
         DAT 'Error'

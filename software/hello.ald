@@ -2,19 +2,17 @@
 
 # MAIN
 
-        MOV CX 00
+        MOV CX 0x00
 LOOP:
         PRINTCHAR [TEXT+CX]B
-        ADD CX CX 01
+        ADD CX CX 0x01
         JLT CX [TEXT_LENGTH]B LOOP
         SHUTDOWN
 
 # DATA
 
 TEXT:
-        DAT 'Hello'
-        DAT 20  # space
-        DAT 'world'
+        DAT 'Hello world'
 
 TEXT_LENGTH:
-        DAT 0B
+        DAT 0x0B
