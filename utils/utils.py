@@ -61,7 +61,11 @@ def bytes_to_word(high, low):
     return (high << 8) + low
 
 
-def word_to_bytes(word):
+def word_to_bytes(word, signed=False):
+    if signed:
+        if word < -32768 or word > 32767:
+            raise WordOutOfRangeError(hex(word))
+        return list(word.to_bytes(2, 'big', signed=True))
     if word < 0 or word > 65535:
         raise WordOutOfRangeError(hex(word))
     return [
@@ -70,7 +74,11 @@ def word_to_bytes(word):
     ]
 
 
-def byte_to_bytes(byte):
+def byte_to_bytes(byte, signed=False):
+    if signed:
+        if byte < -128 or byte > 127:
+            raise ByteOutOfRangeError(hex(byte))
+        return list(byte.to_bytes(1, 'big', signed=True))
     if byte < 0 or byte > 255:
         raise ByteOutOfRangeError(hex(byte))
     return [
@@ -78,24 +86,32 @@ def byte_to_bytes(byte):
     ]
 
 
+def string_to_bytes(s):
+    opcode = []
+    for char in s:
+        for byte in char.encode('utf-8'):
+            opcode.append(byte)
+    return opcode
+
+
 def byte_to_str(byte, signed=False):
     if signed:
         if byte < -128 or byte > 127:
             raise ByteOutOfRangeError(hex(byte))
-        return '%02X' % (byte & 0xFF)
+        return '{:02X}'.format(byte & 0xFF)  # TODO: fix
     if byte < 0 or byte > 255:
         raise ByteOutOfRangeError(hex(byte))
-    return '%02X' % byte
+    return '{:02X}'.format(byte)
 
 
 def word_to_str(word, signed=False):
     if signed:
         if word < -32768 or word > 32767:
             raise WordOutOfRangeError(hex(word))
-        return '%04X' % (word & 0xFFFF)
+        return '{:04X}'.format(word & 0xFFFF)  # TODO: fix
     if word < 0 or word > 65535:
         raise WordOutOfRangeError(hex(word))
-    return '%04X' % word
+    return '{:04X}'.format(word)
 
 
 def binary_to_str(binary, padding=' '):
@@ -136,7 +152,3 @@ def word_to_signed(word):
     if word > 32767:
         return word - 65536
     return word
-
-
-def sort_by_length(words):
-    return sorted(words, key=lambda word: len(word), reverse=True)

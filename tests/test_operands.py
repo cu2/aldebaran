@@ -61,6 +61,10 @@ class TestGetOperandOpcode(unittest.TestCase):
             get_opbyte(OPLEN_WORD, OPTYPE_ADDRESS),
             0xFF, 0xFF,
         ])
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ADDRESS_WORD_LITERAL, -1, 0), is_label_ref=True), [
+            get_opbyte(OPLEN_WORD, OPTYPE_ADDRESS),
+            0xFF, 0xFF,
+        ])
 
     def test_register(self):
         self.assertListEqual(get_operand_opcode(Token(TokenType.WORD_REGISTER, 'AX', 0)), [
@@ -80,7 +84,7 @@ class TestGetOperandOpcode(unittest.TestCase):
             get_opbyte(OPLEN_BYTE, OPTYPE_ABS_REF_REG, 'BX'),
             0x00,
         ])
-        self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 255, 'W'), 0)), [
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', -1, 'W'), 0)), [
             get_opbyte(OPLEN_WORD, OPTYPE_ABS_REF_REG, 'BX'),
             0xFF,
         ])
@@ -96,13 +100,25 @@ class TestGetOperandOpcode(unittest.TestCase):
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD),
             0xFF, 0xFF,
         ])
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD, Reference(-1, 0, 'B'), 0), is_label_ref=True), [
+            get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD),
+            0xFF, 0xFF,
+        ])
         with self.assertRaises(WordOutOfRangeError):
             get_operand_opcode(Token(TokenType.REL_REF_WORD, Reference(65536, 0, 'B'), 0))
         self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_BYTE, Reference(65535, 255, 'B'), 0)), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_BYTE),
             0xFF, 0xFF, 0xFF,
         ])
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_BYTE, Reference(-1, 255, 'B'), 0), is_label_ref=True), [
+            get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_BYTE),
+            0xFF, 0xFF, 0xFF,
+        ])
         self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_REG, Reference(65535, 'BX', 'B'), 0)), [
+            get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_REG, 'BX'),
+            0xFF, 0xFF,
+        ])
+        self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD_REG, Reference(-1, 'BX', 'B'), 0), is_label_ref=True), [
             get_opbyte(OPLEN_BYTE, OPTYPE_REL_REF_WORD_REG, 'BX'),
             0xFF, 0xFF,
         ])

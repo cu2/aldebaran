@@ -100,7 +100,7 @@ def get_opbyte(oplen, optype, opreg_name=None):
     return (oplen << 7) + (optype << 4) + opreg
 
 
-def get_operand_opcode(token):
+def get_operand_opcode(token, is_label_ref=False):
     '''Return opcode of operand'''
     if token.type == TokenType.WORD_LITERAL:
         return [
@@ -113,7 +113,7 @@ def get_operand_opcode(token):
     if token.type == TokenType.ADDRESS_WORD_LITERAL:
         return [
             get_opbyte(OPLEN_WORD, OPTYPE_ADDRESS)
-        ] + utils.word_to_bytes(token.value)
+        ] + utils.word_to_bytes(token.value, signed=is_label_ref)  # ^-1234
     if token.type == TokenType.WORD_REGISTER:
         return [
             get_opbyte(OPLEN_WORD, OPTYPE_REGISTER, token.value)
@@ -142,17 +142,17 @@ def get_operand_opcode(token):
         else:
             opreg = None
         if token.type == TokenType.ABS_REF_REG:
-            oprest = utils.byte_to_bytes(token.value.offset)
+            oprest = utils.byte_to_bytes(token.value.offset, signed=True)  # [AX-12]
         elif token.type == TokenType.REL_REF_WORD:
-            oprest = utils.word_to_bytes(token.value.base)
+            oprest = utils.word_to_bytes(token.value.base, signed=is_label_ref)  # [-1234]
         elif token.type == TokenType.REL_REF_WORD_BYTE:
-            oprest = utils.word_to_bytes(token.value.base) + utils.byte_to_bytes(token.value.offset)
+            oprest = utils.word_to_bytes(token.value.base, signed=is_label_ref) + utils.byte_to_bytes(token.value.offset)  # [-1234+56]
         elif token.type == TokenType.REL_REF_WORD_REG:
-            oprest = utils.word_to_bytes(token.value.base)
+            oprest = utils.word_to_bytes(token.value.base, signed=is_label_ref)  # [-1234+AX]
         return [
             get_opbyte(oplen, optype, opreg)
         ] + oprest
-    raise UnknownTokenError()
+    raise UnknownTokenError(token)
 
 
 def parse_operand_buffer(operand_buffer, operand_count):
