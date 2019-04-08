@@ -3,6 +3,8 @@ import re
 from collections import namedtuple
 from enum import Enum
 
+from utils.utils import sort_by_length
+
 
 Token = namedtuple('Token', ['type', 'value', 'pos'])
 TokenRule = namedtuple('TokenRule', ['token_type', 'regex', 'value'])
@@ -79,8 +81,8 @@ class Tokenizer:
     '''
 
     def __init__(self, keywords):
-        self.instruction_names = set(keywords['instruction_names'])
-        self.macro_names = set(keywords['macro_names'])
+        self.instruction_names = sort_by_length(set(keywords['instruction_names']))
+        self.macro_names = sort_by_length(set(keywords['macro_names']))
         self.word_registers = set(keywords['word_registers'])
         self.byte_registers = set(keywords['byte_registers'])
         self.token_rules = self._get_token_rules()

@@ -136,3 +136,7 @@ def word_to_signed(word):
     if word > 32767:
         return word - 65536
     return word
+
+
+def sort_by_length(words):
+    return sorted(words, key=lambda word: len(word), reverse=True)
