@@ -34,6 +34,25 @@ TokenType = Enum('TokenType', [
 ])
 
 
+ARGUMENT_TYPES = {
+    TokenType.STRING_LITERAL,
+    TokenType.WORD_REGISTER,
+    TokenType.BYTE_REGISTER,
+    TokenType.ADDRESS_WORD_LITERAL,
+    TokenType.ADDRESS_LABEL,
+    TokenType.WORD_LITERAL,
+    TokenType.BYTE_LITERAL,
+    TokenType.ABS_REF_REG,
+    TokenType.REL_REF_WORD_REG,
+    TokenType.REL_REF_LABEL_REG,
+    TokenType.REL_REF_WORD_BYTE,
+    TokenType.REL_REF_LABEL_BYTE,
+    TokenType.REL_REF_WORD,
+    TokenType.REL_REF_LABEL,
+    TokenType.IDENTIFIER,
+}
+
+
 class TokenizerError(Exception):
     pass
 
