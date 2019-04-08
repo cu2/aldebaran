@@ -3,8 +3,6 @@ import re
 from collections import namedtuple
 from enum import Enum
 
-from utils.utils import sort_by_length
-
 
 Token = namedtuple('Token', ['type', 'value', 'pos'])
 TokenRule = namedtuple('TokenRule', ['token_type', 'regex', 'value'])
@@ -55,6 +53,15 @@ ARGUMENT_TYPES = {
 }
 
 
+LABEL_REFERENCE_TYPES = {
+    TokenType.ADDRESS_LABEL,
+    TokenType.IDENTIFIER,
+    TokenType.REL_REF_LABEL_REG,
+    TokenType.REL_REF_LABEL_BYTE,
+    TokenType.REL_REF_LABEL,
+}
+
+
 class TokenizerError(Exception):
     pass
 
@@ -81,8 +88,8 @@ class Tokenizer:
     '''
 
     def __init__(self, keywords):
-        self.instruction_names = sort_by_length(set(keywords['instruction_names']))
-        self.macro_names = sort_by_length(set(keywords['macro_names']))
+        self.instruction_names = set(keywords['instruction_names'])
+        self.macro_names = set(keywords['macro_names'])
         self.word_registers = set(keywords['word_registers'])
         self.byte_registers = set(keywords['byte_registers'])
         self.token_rules = self._get_token_rules()
@@ -175,8 +182,8 @@ class Tokenizer:
     def _get_token_rules(self):
         basic_patterns = {
             'identifier': r'[A-Za-z][a-zA-Z0-9_]*',
-            'word_literal': r'[\da-fA-F]{4}',
-            'byte_literal': r'[\da-fA-F]{2}',
+            'word_literal': r'0X[\da-fA-F]{4}',
+            'byte_literal': r'0X[\da-fA-F]{2}',
             'word_reg': r'({})'.format(r'|'.join(self.word_registers)),
             'byte_reg': r'({})'.format(r'|'.join(self.byte_registers)),
         }
@@ -195,26 +202,6 @@ class Tokenizer:
                 TokenType.COMMENT,
                 r'\#(?P<comment_value>.*)',
                 lambda code, m: self._get_subgroup_value(code, m, 'comment_value'),
-            ),
-            TokenRule(
-                TokenType.INSTRUCTION,
-                r'({})'.format(r'|'.join(self.instruction_names)),
-                self._get_raw_token_value,
-            ),
-            TokenRule(
-                TokenType.MACRO,
-                r'({})'.format(r'|'.join(self.macro_names)),
-                self._get_raw_token_value,
-            ),
-            TokenRule(
-                TokenType.WORD_REGISTER,
-                basic_patterns['word_reg'],
-                self._get_raw_token_value,
-            ),
-            TokenRule(
-                TokenType.BYTE_REGISTER,
-                basic_patterns['byte_reg'],
-                self._get_raw_token_value,
             ),
             TokenRule(
                 TokenType.ADDRESS_WORD_LITERAL,
@@ -293,21 +280,39 @@ class Tokenizer:
         tokens = []
         for m in self.tokenizer_regex.finditer(code.upper()):
             token_type_name = m.lastgroup
+            raw_token_value = m.group()
             if token_type_name == 'UNEXPECTED':
                 self._raise_error(
                     code, m.start(),
-                    'Unexpected character "{}"'.format(m.group()),
+                    'Unexpected character "{}"'.format(raw_token_value),
                     UnexpectedCharacterError,
                 )
             if token_type_name == 'WHITESPACE':
                 continue
-            if token_type_name not in self.token_rule_dict:
-                self._raise_error(
-                    code, m.start(),
-                    'Unknown token: {}'.format(token_type_name),
-                    UnknownTokenError,
-                )
-            token_rule = self.token_rule_dict[token_type_name]
-            token_value = token_rule.value(code, m)
-            tokens.append(Token(token_rule.token_type, token_value, m.start()))
+            if token_type_name == 'IDENTIFIER':
+                if raw_token_value in self.instruction_names:
+                    token_type = TokenType.INSTRUCTION
+                elif raw_token_value in self.macro_names:
+                    token_type = TokenType.MACRO
+                elif raw_token_value in self.word_registers:
+                    token_type = TokenType.WORD_REGISTER
+                elif raw_token_value in self.byte_registers:
+                    token_type = TokenType.BYTE_REGISTER
+                else:
+                    token_type = TokenType.IDENTIFIER
+                if token_type == TokenType.IDENTIFIER:
+                    token_value = self._get_original_token_value(code, m)
+                else:
+                    token_value = raw_token_value
+            else:
+                if token_type_name not in self.token_rule_dict:
+                    self._raise_error(
+                        code, m.start(),
+                        'Unknown token: {}'.format(token_type_name),
+                        UnknownTokenError,
+                    )
+                token_rule = self.token_rule_dict[token_type_name]
+                token_type = token_rule.token_type
+                token_value = token_rule.value(code, m)
+            tokens.append(Token(token_type, token_value, m.start()))
         return tokens
