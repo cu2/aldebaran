@@ -1,24 +1,28 @@
 #!/usr/bin/env python
 
-import datetime
+import argparse
 import sys
 import time
 import traceback
 
 import assembler
-import aux
-import config
-import device_controller
-import errors
-import instructions
-import interrupt_controller
-import timer
+from instructions.instruction_set import INSTRUCTION_SET
+
+from utils import config, errors, utils
+
+from hardware import device_controller
+from hardware import interrupt_controller
+from hardware import timer
+
+from hardware.clock import Clock
+from hardware.cpu import CPU
+from hardware.ram import RAM
 
 
-class Aldebaran(aux.Hardware):
+class Aldebaran(utils.Hardware):
 
     def __init__(self, components, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         self.clock = components['clock']
         self.cpu = components['cpu']
         self.ram = components['ram']
@@ -70,285 +74,39 @@ class Aldebaran(aux.Hardware):
         return retval
 
 
-class Clock(aux.Hardware):
-
-    def __init__(self, freq, log=None):
-        aux.Hardware.__init__(self, log)
-        if freq:
-            self.speed = 1 / freq
-        else:
-            self.speed = 0
-        self.start_time = None
-        self.cpu = None
-        self.step_count = 0
-
-    def register_architecture(self, cpu):
-        self.cpu = cpu
-
-    def run(self):
-        if not self.cpu:
-            self.log.log('clock', 'ERROR: Cannot run without CPU.')
-            return 1
-        self.log.log('clock', 'Started.')
-        self.start_time = time.time()
-        shutdown = False
-        try:
-            while not shutdown:
-                self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
-                shutdown = self.cpu.step()
-                self.step_count += 1
-                self.sleep()
-        except (KeyboardInterrupt, SystemExit):
-            self.log.log('clock', 'Stopped.')
-        return 0
-
-    def sleep(self):
-        sleep_time = self.start_time + self.speed - time.time()
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-        self.start_time = time.time()
-
-
-class CPU(aux.Hardware):
-
-    def __init__(self, system_addresses, system_interrupts, inst_list, user_log=None, log=None):
-        aux.Hardware.__init__(self, log)
-        self.system_addresses = system_addresses
-        self.system_interrupts = system_interrupts
-        self.inst_list = inst_list
-        self.user_log = user_log
-        self.ram = None
-        self.interrupt_controller = None
-        self.timer = None
-        self.registers = {
-            'IP': self.system_addresses['entry_point'],
-            'SP': self.system_addresses['SP'],
-            'AX': 0x0000,
-            'BX': 0x0000,
-            'CX': 0x0000,
-            'DX': 0x0000,
-            'BP': 0x0000,
-            'SI': 0x0000,
-            'DI': 0x0000,
-        }
-        self.flags = {
-            'interrupt': 1,
-        }
-        self.operand_buffer_size = 16
-        self.halt = False
-        self.shutdown = False
-
-    def register_architecture(self, ram, interrupt_controller, device_controller, timer):
-        self.ram = ram
-        self.interrupt_controller = interrupt_controller
-        self.device_controller = device_controller
-        self.timer = timer
-
-    def step(self):
-        if not self.ram:
-            self.log.log('cpu', 'ERROR: Cannot run without RAM.')
-            return
-        if self.interrupt_controller and self.flags['interrupt']:
-            interrupt_number = self.interrupt_controller.check()
-            if interrupt_number is not None:
-                self.call_int(interrupt_number)
-                return
-        if self.halt:
-            return
-        self.mini_debugger()
-        inst_opcode = self.ram.read_byte(self.registers['IP'])
-        try:
-            inst_name = self.inst_list[inst_opcode]
-        except IndexError:
-            raise errors.UnknownOpcodeError(inst_opcode)
-        operand_buffer = [self.ram.read_byte(self.registers['IP'] + i) for i in range(1, self.operand_buffer_size + 1)]
-        current_instruction = getattr(instructions, inst_name)(self, operand_buffer)
-        self.log.log('cpu', '%s %s' % (inst_name, current_instruction.operands))
-        next_ip = current_instruction.run()
-        self.registers['IP'] = next_ip % self.ram.size
-        self.log.log('', '')
-        return self.shutdown
-
-    def mini_debugger(self):
-        if not isinstance(self.log, aux.SilentLog):
-            ram_page = (self.registers['IP'] // 16) * 16
-            rel_sp = self.system_addresses['SP'] - self.registers['SP']
-            stack_page = self.system_addresses['SP'] - 11 - (rel_sp // 12) * 12
-            self.log.log('cpu', 'IP=%s AX/BX/CX/DX=%s/%s/%s/%s RAM[%s]:%s ST[%s/%s]:%s' % (
-                aux.word_to_str(self.registers['IP']),
-                aux.word_to_str(self.registers['AX']),
-                aux.word_to_str(self.registers['BX']),
-                aux.word_to_str(self.registers['CX']),
-                aux.word_to_str(self.registers['DX']),
-                aux.word_to_str(ram_page),
-                ''.join([('>' if idx == self.registers['IP'] else ' ') + aux.byte_to_str(self.ram.mem[idx]) for idx in range(ram_page, ram_page + 16)]),
-                aux.word_to_str(stack_page),
-                aux.word_to_str(rel_sp // 12),
-                ''.join([aux.byte_to_str(self.ram.mem[idx]) + (
-                        (
-                            '<{' if idx == self.registers['BP'] else '< '
-                        ) if idx == self.registers['SP'] else (
-                            '{ ' if idx == self.registers['BP'] else '  '
-                        )
-                    ) for idx in range(stack_page, stack_page + 16)]),
-            ))
-
-    def get_register(self, register_name):
-        value = None
-        hex_value = None
-        if register_name in self.registers:
-            value = self.registers[register_name]
-            hex_value = aux.word_to_str(value)
-        elif register_name in ['AL', 'BL', 'CL', 'DL']:
-            value = aux.get_low(self.registers[register_name[0] + 'X'])
-            hex_value = aux.byte_to_str(value)
-        elif register_name in ['AH', 'BH', 'CH', 'DH']:
-            value = aux.get_high(self.registers[register_name[0] + 'X'])
-            hex_value = aux.byte_to_str(value)
-        else:
-            raise errors.InvalidRegisterNameError(register_name)
-        self.log.log('cpu', 'get_reg(%s) = %s' % (register_name, hex_value))
-        return value
-
-    def set_register(self, register_name, value):
-        if register_name in self.registers:
-            self.registers[register_name] = value
-            self.log.log('cpu', 'set_reg(%s) = %s' % (register_name, aux.word_to_str(value)))
-            return
-        if register_name in ['AL', 'BL', 'CL', 'DL']:
-            self.registers[register_name[0] + 'X'] = aux.set_low(self.registers[register_name[0] + 'X'], value)
-        elif register_name in ['AH', 'BH', 'CH', 'DH']:
-            self.registers[register_name[0] + 'X'] = aux.set_high(self.registers[register_name[0] + 'X'], value)
-        else:
-            raise errors.InvalidRegisterNameError(register_name)
-        self.log.log('cpu', 'set_reg(%s) = %s' % (register_name, aux.byte_to_str(value)))
-
-    def stack_push_byte(self, value):
-        if self.registers['SP'] < 1:
-            raise errors.StackOverflowError()
-        self.ram.write_byte(self.registers['SP'], value)
-        self.log.log('cpu', 'pushed byte %s' % aux.byte_to_str(value))
-        self.registers['SP'] -= 1
-
-    def stack_pop_byte(self):
-        if self.registers['SP'] >= self.system_addresses['SP']:
-            raise errors.StackUnderflowError()
-        self.registers['SP'] += 1
-        value = self.ram.read_byte(self.registers['SP'])
-        self.log.log('cpu', 'popped byte %s' % aux.byte_to_str(value))
-        return value
-
-    def stack_push_word(self, value):
-        if self.registers['SP'] < 2:
-            raise errors.StackOverflowError()
-        self.ram.write_word(self.registers['SP'] - 1, value)
-        self.log.log('cpu', 'pushed word %s' % aux.word_to_str(value))
-        self.registers['SP'] -= 2
-
-    def stack_pop_word(self):
-        if self.registers['SP'] >= self.system_addresses['SP'] - 1:
-            raise errors.StackUnderflowError()
-        self.registers['SP'] += 2
-        value = self.ram.read_word(self.registers['SP'] - 1)
-        self.log.log('cpu', 'popped word %s' % aux.word_to_str(value))
-        return value
-
-    def stack_push_flags(self):
-        flag_word = 0x0000
-        for idx, name in enumerate(['interrupt']):
-            flag_word += self.flags[name] << idx
-        self.stack_push_word(flag_word)
-        self.log.log('cpu', 'pushed FLAGS')
-
-    def stack_pop_flags(self):
-        flag_word = self.stack_pop_word()
-        for idx, name in enumerate(['interrupt']):
-            self.flags[name] = (flag_word >> idx) & 0x0001
-        self.log.log('cpu', 'popped FLAGS')
-
-    def enable_interrupts(self):
-        self.flags['interrupt'] = True
-        self.log.log('cpu', 'interrupts enabled')
-
-    def disable_interrupts(self):
-        self.flags['interrupt'] = False
-        self.log.log('cpu', 'interrupts disabled')
-
-    def call_int(self, interrupt_number):
-        self.log.log('cpu', 'calling interrupt: %s' % aux.byte_to_str(interrupt_number))
-        self.halt = False
-        self.stack_push_flags()
-        self.disable_interrupts()
-        self.stack_push_word(self.registers['IP'])
-        self.registers['IP'] = self.ram.read_word(self.system_addresses['IVT'] + 2 * interrupt_number) % self.ram.size
-
-
-class RAM(aux.Hardware):
-
-    def __init__(self, size, log=None):
-        aux.Hardware.__init__(self, log)
-        self.size = size
-        self.mem = [0] * self.size
-        self.log.log('ram', '%s bytes initialized.' % self.size)
-
-    def read_byte(self, pos):
-        pos = pos % self.size
-        content = self.mem[pos]
-        self.log.log('ram', 'Read byte %s from %s.' % (aux.byte_to_str(content), aux.word_to_str(pos)))
-        return content
-
-    def write_byte(self, pos, content):
-        pos = pos % self.size
-        self.mem[pos] = content
-        self.log.log('ram', 'Written byte %s to %s.' % (aux.byte_to_str(content), aux.word_to_str(pos)))
-
-    def read_word(self, pos):
-        pos1 = pos % self.size
-        pos2 = (pos + 1) % self.size
-        content = (self.mem[pos1] << 8) + self.mem[pos2]
-        self.log.log('ram', 'Read word %s from %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
-        return content
-
-    def write_word(self, pos, content):
-        pos1 = pos % self.size
-        pos2 = (pos + 1) % self.size
-        self.mem[pos1] = content >> 8
-        self.mem[pos2] = content & 0x00FF
-        self.log.log('ram', 'Written word %s to %s.' % (aux.word_to_str(content), aux.word_to_str(pos1)))
-
-
-class BIOS(aux.Hardware):
+class BIOS(utils.Hardware):
 
     def __init__(self, contents):
-        aux.Hardware.__init__(self)
+        utils.Hardware.__init__(self)
         self.contents = contents
 
 
-def main(args):
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        'file',
+        help='ALDB binary file'
+    )
+    # TODO: add verbosity
+    args = parser.parse_args()
     # logging
     loggers = config.loggers
     # bios
-    inst_list, inst_dict = instructions.get_instruction_set()
-    if len(args):
-        start_program_filename = args[0]
-    else:
-        start_program_filename = 'examples/hello.ald'
-    try:
-        asm = assembler.Assembler(inst_dict)
-        asm.load_file(start_program_filename)
-        start_program = asm.assemble(config.system_addresses['entry_point'])
-    except errors.UnknownInstructionError as e:
-        print('errors.UnknownInstructionError: %s' % e)
-        return 1
+    with open(args.file, 'rb') as f:
+        start_program = f.read()
+    instruction_mapping = {
+        inst.__name__: (opcode, inst)
+        for opcode, inst in INSTRUCTION_SET
+    }
     bios = BIOS({
         'start': (config.system_addresses['entry_point'], start_program),
-        'default_interrupt_handler': (config.system_addresses['default_interrupt_handler'], [inst_dict['IRET']]),
-        'IVT': (config.system_addresses['IVT'], list(aux.word_to_bytes(config.system_addresses['default_interrupt_handler'])) * config.number_of_interrupts),
+        'default_interrupt_handler': (config.system_addresses['default_interrupt_handler'], [instruction_mapping['IRET'][0]]),
+        'IVT': (config.system_addresses['IVT'], utils.word_to_bytes(config.system_addresses['default_interrupt_handler']) * config.number_of_interrupts),
     })
     # start
     aldebaran = Aldebaran({
         'clock': Clock(config.clock_freq, loggers['clock']),
-        'cpu': CPU(config.system_addresses, config.system_interrupts, inst_list, loggers['user'], loggers['cpu']),
+        'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET, loggers['user'], loggers['cpu']),
         'ram': RAM(config.ram_size, loggers['ram']),
         'bios': bios,
         'interrupt_controller': interrupt_controller.InterruptController(loggers['interrupt_controller']),
@@ -362,8 +120,4 @@ def main(args):
     }, loggers['aldebaran'])
     retval = aldebaran.run()
     print()
-    return retval
-
-
-if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(retval)

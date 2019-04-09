@@ -27,6 +27,10 @@ class InvalidOperandError(Exception):
     pass
 
 
+class InvalidWriteOperationError(Exception):
+    pass
+
+
 class InsufficientOperandBufferError(Exception):
     pass
 
@@ -156,7 +160,7 @@ def get_operand_opcode(token, is_label_ref=False):
 
 
 def parse_operand_buffer(operand_buffer, operand_count):
-    '''Return opcode_length (including instruction) and list of operands as Operand(oplen, optype, opreg, oprest) tuples from operand_buffer'''
+    '''Return opcode_length (including instruction) and list of operands as Operand() tuples from operand_buffer'''
     operands = []
     operand_buffer_idx = 0
     try:
@@ -233,3 +237,47 @@ def parse_operand_buffer(operand_buffer, operand_count):
     except IndexError:
         raise InsufficientOperandBufferError(operand_buffer)
     return operands, 1 + operand_buffer_idx
+
+
+def get_reference_address(operand, cpu, ip):
+    if operand.optype == OPTYPE_ABS_REF_REG:
+        return cpu.get_register(operand.opreg) + operand.opoffset
+    if operand.optype == OPTYPE_REL_REF_WORD:
+        return ip + operand.opbase
+    if operand.optype == OPTYPE_REL_REF_WORD_BYTE:
+        return ip + operand.opbase + operand.opoffset
+    if operand.optype == OPTYPE_REL_REF_WORD_REG:
+        return ip + operand.opbase + cpu.get_register(operand.opreg)
+    raise InvalidOperandError('Cannot get reference address of {}'.format(operand))
+
+
+def get_operand_value(operand, cpu, ram, ip):
+    if operand.optype == OPTYPE_VALUE:
+        return operand.opvalue
+    if operand.optype == OPTYPE_ADDRESS:
+        return ip + operand.opvalue
+    if operand.optype == OPTYPE_REGISTER:
+        return cpu.get_register(operand.opreg)
+    if operand.optype == OPTYPE_EXTENDED:
+        raise InvalidOperandError('Extended optype not supported yet.')
+    address = get_reference_address(operand, cpu, ip)
+    if operand.oplen == OPLEN_BYTE:
+        return ram.read_byte(address)
+    else:
+        return ram.read_word(address)
+
+
+def set_operand_value(operand, value, cpu, ram, ip):
+    if operand.optype == OPTYPE_VALUE:
+        raise InvalidWriteOperationError('Cannot set value type operand.')
+    if operand.optype == OPTYPE_ADDRESS:
+        raise InvalidWriteOperationError('Cannot set address type operand.')
+    if operand.optype == OPTYPE_REGISTER:
+        return cpu.set_register(operand.opreg, value)
+    if operand.optype == OPTYPE_EXTENDED:
+        raise InvalidOperandError('Extended optype not supported yet.')
+    address = get_reference_address(operand, cpu, ip)
+    if operand.oplen == OPLEN_BYTE:
+        return ram.write_byte(address, value)
+    else:
+        return ram.write_word(address, value)

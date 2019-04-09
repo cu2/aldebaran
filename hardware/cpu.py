@@ -15,11 +15,14 @@ class StackUnderflowError(StackError):
 
 class CPU(utils.Hardware):
 
-    def __init__(self, system_addresses, system_interrupts, inst_list, user_log=None, log=None):
+    def __init__(self, system_addresses, system_interrupts, instruction_set, user_log=None, log=None):
         utils.Hardware.__init__(self, log)
         self.system_addresses = system_addresses
         self.system_interrupts = system_interrupts
-        self.inst_list = inst_list
+        self.instruction_opcode_mapping = {
+            opcode: inst
+            for opcode, inst in instruction_set
+        }
         self.user_log = user_log
         self.ram = None
         self.interrupt_controller = None
@@ -62,12 +65,12 @@ class CPU(utils.Hardware):
         self.mini_debugger()
         inst_opcode = self.ram.read_byte(self.registers['IP'])
         try:
-            inst_name = self.inst_list[inst_opcode]
+            inst_class = self.instruction_opcode_mapping[inst_opcode]
         except IndexError:
             raise errors.UnknownOpcodeError(inst_opcode)
         operand_buffer = [self.ram.read_byte(self.registers['IP'] + i) for i in range(1, self.operand_buffer_size + 1)]
-        current_instruction = getattr(instructions, inst_name)(self, operand_buffer)
-        self.log.log('cpu', '%s %s' % (inst_name, current_instruction.operands))
+        current_instruction = inst_class(self, operand_buffer)
+        self.log.log('cpu', '%s %s' % (inst_class.__name__, current_instruction.operands))
         next_ip = current_instruction.run()
         self.registers['IP'] = next_ip % self.ram.size
         self.log.log('', '')

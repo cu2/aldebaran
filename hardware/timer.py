@@ -2,7 +2,7 @@ import datetime
 import threading
 import time
 
-import aux
+from utils import utils
 
 
 TIMER_MODE_OFF = 0
@@ -10,10 +10,10 @@ TIMER_MODE_ONESHOT = 1
 TIMER_MODE_PERIODIC = 2
 
 
-class Timer(aux.Hardware):
+class Timer(utils.Hardware):
 
     def __init__(self, freq, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         if freq:
             self.speed = 1 / freq
         else:
@@ -71,4 +71,4 @@ class Timer(aux.Hardware):
 
     def set_subtimer(self, subtimer_number, subtimer_config):
         self.subtimers[subtimer_number] = subtimer_config
-        self.log.log('timer', 'Subtimer %s set.' % aux.byte_to_str(subtimer_number))
+        self.log.log('timer', 'Subtimer %s set.' % utils.byte_to_str(subtimer_number))

@@ -1,9 +1,9 @@
 import queue
 
-import aux
+from utils import utils
 
 
-class InterruptController(aux.Hardware):
+class InterruptController(utils.Hardware):
     '''
     Interrupt Controller
 
@@ -11,7 +11,7 @@ class InterruptController(aux.Hardware):
     '''
 
     def __init__(self, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         self.interrupt_queue = queue.Queue()
 
     def check(self):
@@ -21,7 +21,7 @@ class InterruptController(aux.Hardware):
         except queue.Empty:
             pass
         if interrupt_number is not None:
-            self.log.log('interrupt_controller', 'Forwarded IRQ: %s' % aux.byte_to_str(interrupt_number))
+            self.log.log('interrupt_controller', 'Forwarded IRQ: %s' % utils.byte_to_str(interrupt_number))
         return interrupt_number
 
     def send(self, interrupt_number):
@@ -33,4 +33,4 @@ class InterruptController(aux.Hardware):
             self.log.log('interrupt_controller', 'Illegal IRQ: %s' % interrupt_number)
             return
         self.interrupt_queue.put(interrupt_number)
-        self.log.log('interrupt_controller', 'Received IRQ: %s' % aux.byte_to_str(interrupt_number))
+        self.log.log('interrupt_controller', 'Received IRQ: %s' % utils.byte_to_str(interrupt_number))

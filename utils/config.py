@@ -1,4 +1,4 @@
-import aux
+from . import utils
 
 
 # Network config
@@ -40,34 +40,34 @@ timer_freq = 10  # Hz
 # Logging
 
 minimal_loggers = {
-    'aldebaran': aux.Log(),
+    'aldebaran': utils.Log(),
     'clock': None,
     'cpu': None,
-    'user': aux.Log(),
+    'user': utils.Log(),
     'ram': None,
     'interrupt_controller': None,
     'device_controller': None,
     'timer': None,
 }
 normal_loggers = {
-    'aldebaran': aux.Log(),
+    'aldebaran': utils.Log(),
     'clock': None,
-    'cpu': aux.Log(),
-    'user': aux.Log(),
+    'cpu': utils.Log(),
+    'user': utils.Log(),
     'ram': None,
-    'interrupt_controller': aux.Log(),
-    'device_controller': aux.Log(),
+    'interrupt_controller': utils.Log(),
+    'device_controller': utils.Log(),
     'timer': None,
 }
 full_loggers = {
-    'aldebaran': aux.Log(),
-    'clock': aux.Log(),
-    'cpu': aux.Log(),
-    'user': aux.Log(),
-    'ram': aux.Log(),
-    'interrupt_controller': aux.Log(),
-    'device_controller': aux.Log(),
-    'timer': aux.Log(),
+    'aldebaran': utils.Log(),
+    'clock': utils.Log(),
+    'cpu': utils.Log(),
+    'user': utils.Log(),
+    'ram': utils.Log(),
+    'interrupt_controller': utils.Log(),
+    'device_controller': utils.Log(),
+    'timer': utils.Log(),
 }
 
 # choose verbosity:

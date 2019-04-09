@@ -5,7 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-import aux
+from utils import utils
 
 
 COMMAND_REGISTER = 0
@@ -13,7 +13,7 @@ COMMAND_UNREGISTER = 1
 COMMAND_DATA = 2
 
 
-class DeviceController(aux.Hardware):
+class DeviceController(utils.Hardware):
 
     class RequestHandler(BaseHTTPRequestHandler):
 
@@ -81,8 +81,8 @@ class DeviceController(aux.Hardware):
                 return
             self.server.log.log('device_controller', 'Registering device to IOPort %s...' % ioport_number)
             self.server.log.log('device_controller', 'Device type and ID: %s %s' % (
-                aux.byte_to_str(device_type),
-                ' '.join([aux.byte_to_str(device_id[i]) for i in range(3)])
+                utils.byte_to_str(device_type),
+                ' '.join([utils.byte_to_str(device_id[i]) for i in range(3)])
             ))
             self.server.log.log('device_controller', 'Device host and port: %s:%s' % (device_host, device_port))
             self.server.ram.write_byte(self.server.device_registry_address + 4 * ioport_number, device_type)
@@ -119,7 +119,7 @@ class DeviceController(aux.Hardware):
             self.daemon_threads = True
 
     def __init__(self, host, port, system_addresses, system_interrupts, ioports, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         self.address = (host, port)
         self.device_status_table = system_addresses['device_status_table']
         self.device_registry_address = system_addresses['device_registry_address']
@@ -179,10 +179,10 @@ class DeviceController(aux.Hardware):
         self.log.log('device_controller', 'Stopped.')
 
 
-class IOPort(aux.Hardware):
+class IOPort(utils.Hardware):
 
     def __init__(self, ioport_number, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         self.ioport_number = ioport_number
         self.registered = False
         self.device_host = None
@@ -213,7 +213,7 @@ class IOPort(aux.Hardware):
         if command != COMMAND_DATA:
             return 400, 'ERROR: Unknown command.\n'
         self.log.log('ioport %s' % self.ioport_number, 'Command: DATA')
-        self.log.log('ioport %s' % self.ioport_number, 'Argument: %s' % aux.binary_to_str(argument))
+        self.log.log('ioport %s' % self.ioport_number, 'Argument: %s' % utils.binary_to_str(argument))
         if len(self.input_buffer):
             self.log.log('ioport %s' % self.ioport_number, 'ERROR: Input buffer contains unread data.')
             return 400, 'ERROR: Input buffer contains unread data.\n'
@@ -222,7 +222,7 @@ class IOPort(aux.Hardware):
             return 400, 'ERROR: Cannot receive more than 255 bytes.\n'
         self.input_buffer = argument
         self.device_controller.interrupt_controller.send(self.device_controller.system_interrupts['ioport_in'][self.ioport_number])
-        return 200, 'Received: %s (%s bytes)\n' % (aux.binary_to_str(argument), len(argument))
+        return 200, 'Received: %s (%s bytes)\n' % (utils.binary_to_str(argument), len(argument))
 
     def read_input(self):
         value = self.input_buffer
