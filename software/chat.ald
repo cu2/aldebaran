@@ -2,8 +2,8 @@
 
 
 MAIN:
-        SETINT 0x20 TERMINAL_HANDLER_0  # ioport_in[0]
-        SETINT 0x21 TERMINAL_HANDLER_1  # ioport_in[0]
+        SETINT 0x20 INPUT_HANDLER_0  # ioport_in[0]
+        SETINT 0x21 INPUT_HANDLER_1  # ioport_in[0]
         SETINT 0x30 OUTPUT_HANDLER_0  # ioport_out[0]
         SETINT 0x31 OUTPUT_HANDLER_1  # ioport_out[1]
 HALTLOOP:
@@ -11,31 +11,37 @@ HALTLOOP:
         JMP HALTLOOP
 
 
-TERMINAL_HANDLER_0:  # if terminal 0 sends something, forward it to terminal 1
-        IN 0x00 INPUT_BUFFER_0
-        OUT 0x01 INPUT_BUFFER_0
+INPUT_HANDLER_0:  # if terminal 0 sends something, forward it to terminal 1
+        IN [TERMINAL_ID_0]B INPUT_BUFFER_0
+        OUT [TERMINAL_ID_1]B INPUT_BUFFER_0
         IRET
 
 
-TERMINAL_HANDLER_1:
-        IN 0x01 INPUT_BUFFER_1
-        OUT 0x00 INPUT_BUFFER_1
+INPUT_HANDLER_1:
+        IN [TERMINAL_ID_1]B INPUT_BUFFER_1
+        OUT [TERMINAL_ID_0]B INPUT_BUFFER_1
         IRET
 
 
 OUTPUT_HANDLER_0:  # send error message to terminal 1, if terminal 0 is disconnected
-        JZ [0xFDB0] OK_0
-        MOV CX 0x05
-        OUT 0x01 ERROR_MESSAGE
+        PUSH AX
+        MOV AX 0xFDB0  # DeviceStatusTable[0]
+        JZ [AX] OK_0  # only way to get absolute reference
+        MOV CX [ERROR_MESSAGE_LENGTH]B
+        OUT [TERMINAL_ID_1]B ERROR_MESSAGE
 OK_0:
+        POP AX
         IRET
 
 
 OUTPUT_HANDLER_1:
-        JZ [0xFDB1] OK_1
-        MOV CX 0x05
-        OUT 0x00 ERROR_MESSAGE
+        PUSH AX
+        MOV AX 0xFDB1  # DeviceStatusTable[1]
+        JZ [AX] OK_1
+        MOV CX [ERROR_MESSAGE_LENGTH]B
+        OUT [TERMINAL_ID_0]B ERROR_MESSAGE
 OK_1:
+        POP AX
         IRET
 
 
@@ -49,3 +55,12 @@ INPUT_BUFFER_1:
 
 ERROR_MESSAGE:
         DAT 'Error'
+
+ERROR_MESSAGE_LENGTH:
+        DAT 0x05
+
+TERMINAL_ID_0:
+        DAT 0x00
+
+TERMINAL_ID_1:
+        DAT 0x01
