@@ -4,12 +4,11 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
-import aux
-import config
-import device_controller
+from utils import config, utils
+from hardware import device_controller
 
 
-class Device(aux.Hardware):
+class Device(utils.Hardware):
     '''
     Generic device class
 
@@ -67,7 +66,7 @@ class Device(aux.Hardware):
             self.daemon_threads = True
 
     def __init__(self, ioport_number, device_descriptor, aldebaran_address=None, device_address=None, log=None):
-        aux.Hardware.__init__(self, log)
+        utils.Hardware.__init__(self, log)
         self.ioport_number = ioport_number
         self.device_type, self.device_id = device_descriptor
         if aldebaran_address is None:
