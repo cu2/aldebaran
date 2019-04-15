@@ -6,6 +6,7 @@ import os
 
 from instructions.instruction_set import INSTRUCTION_SET
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS, get_operand_opcode
+from utils.executable import Executable
 from utils.tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
 from utils import utils
 
@@ -280,10 +281,10 @@ class Assembler:
         with open(filename, 'rt') as f:
             source_code = f.read()
         opcode = self.assemble_code(source_code)
-        binary_filename = '{}.aldb'.format(os.path.splitext(filename)[0])
-        with open(binary_filename, 'wb') as f:
-            f.write(bytes(opcode))
-        print('Assembled {} ({} bytes).'.format(binary_filename, len(opcode)))
+        binary_filename = os.path.splitext(filename)[0]
+        exe = Executable(1, opcode)
+        exe.save_to_file(binary_filename)
+        print('Assembled {} ({} bytes).'.format(binary_filename, exe.length))
 
 
 if __name__ == '__main__':

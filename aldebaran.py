@@ -9,6 +9,7 @@ import assembler
 from instructions.instruction_set import INSTRUCTION_SET
 
 from utils import config, errors, utils
+from utils.executable import Executable
 
 from hardware import device_controller
 from hardware import interrupt_controller
@@ -92,8 +93,12 @@ if __name__ == '__main__':
     # logging
     loggers = config.loggers
     # bios
-    with open(args.file, 'rb') as f:
-        start_program = f.read()
+    exe = Executable()
+    exe.load_from_file(args.file)
+    if exe.version != 1:
+        print('Unsupported version: {}'.format(exe.version))
+        sys.exit(1)
+    start_program = exe.opcode
     instruction_mapping = {
         inst.__name__: (opcode, inst)
         for opcode, inst in INSTRUCTION_SET
