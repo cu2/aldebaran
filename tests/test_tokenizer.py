@@ -82,7 +82,7 @@ class TestTokenizer(unittest.TestCase):
             Token(TokenType.BYTE_LITERAL, 18, 37),
             Token(TokenType.ADDRESS_WORD_LITERAL, 4660, 42),
             Token(TokenType.ADDRESS_LABEL, 'label', 50),
-            Token(TokenType.ABS_REF_REG, Reference('AX', None, 'W'), 57),
+            Token(TokenType.ABS_REF_REG, Reference('AX', 0, 'W'), 57),
             Token(TokenType.ABS_REF_REG, Reference('AX', 18, 'B'), 62),
             Token(TokenType.ABS_REF_REG, Reference('AX', -18, 'B'), 73),
             Token(TokenType.REL_REF_WORD, Reference(4660, None, 'B'), 84),

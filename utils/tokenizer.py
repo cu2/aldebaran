@@ -152,7 +152,9 @@ class Tokenizer:
             offset_sign = None
         length = 'B' if m.group('length_{}'.format(ref_type)) == 'B' else 'W'
         if ref_type == 'abs_reg':
-            if offset is not None:
+            if offset is None:
+                offset = 0
+            else:
                 if offset_sign == '+':
                     offset = int(offset, 16)
                 else:
