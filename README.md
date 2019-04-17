@@ -1,10 +1,10 @@
 # Aldebaran
 
-Aldebaran (ALD) is a 16-bit computer with 64kB RAM emulated in Python.
+Aldebaran is a 16-bit computer with 64kB RAM emulated in Python.
 
-The specs are partly (from a large distance) based on the IBM PC XT. In spite of the totally inefficient technology (namely Python) it reached the blazing speed of 10-15 kHz on a Macbook Air.
+The specs are partly based on the IBM PC XT, but mostly follow my own design, based on ideas coming from various sources. In spite of the totally inefficient technology (namely Python) it reached the blazing speed of 10-15 kHz on a Macbook Air.
 
-The project is under heavy construction...
+The project is under construction: the architecture, the instruction set and the assembly language are not final/ready yet. Not to mention the missing devices, operating system or high-level language.
 
 
 
@@ -15,7 +15,7 @@ The project is under heavy construction...
 
 ### Clock
 
-The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after ALD shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
+The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after Aldebaran shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
 
 
 ### RAM
@@ -34,33 +34,36 @@ For every clock beat the CPU:
 The CPU has the following registers:
 
 - 4 generic 16-bit registers: `AX`, `BX`, `CX`, `DX` (with separate lower and upper parts)
-- `IP`: Instruction Pointer for control flow
 - `SP`: Stack Pointer for stack operations
 - `BP`: Base Pointer for either using as a frame pointer in the call stack or for generic usage
 - `SI`, `DI`: Source and Destination Index registers for either string operations or for generic usage
+- `IP`: Instruction Pointer for control flow
 - Interrupt Flag: to enable and disable hardware interrupts
 
 
 ### Interrupt Controller
 
-The Interrupt Controller accepts hardware interrupts from the Device Controller (or other not yet implemented internal devices) and puts them into a FIFO queue. The CPU can take interrupts out of the queue and handle them.
+The Interrupt Controller accepts hardware interrupts from internal devices (currently: Device Controller and Timer) and puts them into a FIFO queue. The CPU can take interrupts out of the queue and handle them.
 
 Interrupt numbers (00-FF) are mapped to interrupt handler routines based on the Interrupt Vector Table (a 256 times 2 bytes part of the RAM). Interrupt numbers are the following:
 
-- 00-3F: system interrupts
+- 00-3F: reserved for hardware interrupts
     - 00-1D: unused (so far)
     - 1E: device_registered (called when a device is registered)
     - 1F: device_unregistered (called when a device is unregistered)
     - 20-2F: ioport_in (called when a device sends data to an IOPort)
     - 30-3F: ioport_out (called after data is sent to a device and the device responds a status)
-- 40-FF: free interrupts
+- 40-7F: reserved for OS and device driver (system) interrupts
+- 80-FF: free (user) interrupts
+
+Software interrupts are called by the CPU directly with the `INT` instruction.
 
 
 ### Device Controller and IOPorts
 
-The Device Controller contains 4 (potentially 16) IOPorts each capable of communicating with a separate device. When a new device is connected, first it's registered with an IOPort and into the so called Device Registry.
+The Device Controller contains 16 IOPorts each capable of communicating with a separate device (via HTTP). The Device Controller handles the slow "physical" (i.e. network) connection to the devices. The IOPorts work fast: they respond to requests from the CPU (`IN` and `OUT` instructions) immediately.
 
-The Device Registry is a part of the RAM. For each IOPort it has 4 bytes:
+When a new device is connected, first it's registered with an IOPort and into the so called Device Registry. The Device Registry is a part of the RAM. For each IOPort it has 4 bytes:
 
 - 1 byte Device Type (00 if no device is registered)
 - 3 bytes Device ID (000000 if no device is registered)
@@ -116,6 +119,8 @@ If `speed` is zero, a `ONESHOT` subtimer calls the interrupt at the next beat of
 
 ### Instruction set
 
+### Assembly language
+
 
 
 ## How to install
@@ -130,19 +135,14 @@ Requirements: Python 3.x
 
 ## How to use
 
-Run hello.ald:
+Assemble source code to executable:
 ```
-./aldebaran.py
-```
-
-Run any other ALD file:
-```
-./aldebaran.py something.ald
+./assembler.py software/hello.ald
 ```
 
-Assemble:
+Run executable:
 ```
-./assembler.py something.ald
+./aldebaran.py software/hello
 ```
 
 Run a device:
