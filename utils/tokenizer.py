@@ -5,7 +5,8 @@ from enum import Enum
 
 
 Token = namedtuple('Token', ['type', 'value', 'pos'])
-TokenRule = namedtuple('TokenRule', ['token_type', 'regex', 'value'])
+Rule = namedtuple('Rule', ['regex', 'case'])
+Case = namedtuple('Case', ['token_type', 'value'])
 Reference = namedtuple('Reference', ['base', 'offset', 'length'])
 
 
@@ -62,6 +63,183 @@ LABEL_REFERENCE_TYPES = {
 }
 
 
+class CaseHandler:
+
+    def __init__(self, code, m, keywords, _raise_error):
+        self.code = code
+        self.m = m
+        self.raw_value = m.group()
+        self.original_value = code[m.start():m.end()]
+        self.instruction_names = set(keywords['instruction_names'])
+        self.macro_names = set(keywords['macro_names'])
+        self.word_registers = set(keywords['word_registers'])
+        self.byte_registers = set(keywords['byte_registers'])
+        self._raise_error = _raise_error
+
+    def _get_subgroup_value(self, subgroup):
+        return self.code[self.m.start(subgroup):self.m.end(subgroup)]
+
+    def _get_string_literal_value(self):
+        try:
+            value = ast.literal_eval(self.original_value)
+        except Exception:
+            self._raise_error(
+                self.code, self.m.start(),
+                'Invalid string literal: {}'.format(self.original_value),
+                InvalidStringLiteralError,
+            )
+        return value
+
+    def _get_address_hex_literal_value(self):
+        return int(self.raw_value[1:], 16)
+
+    def _get_hex_literal_value(self):
+        return int(self.raw_value, 16)
+
+    def _get_ref_value(self, ref_type):
+        base_subgroup_name = 'base_{}'.format(ref_type)
+        base = self.m.group(base_subgroup_name)
+        try:
+            offset = self.m.group('offset_{}'.format(ref_type))
+        except Exception:
+            offset = None
+        try:
+            offset_sign = self.m.group('offset_sign_{}'.format(ref_type))
+        except Exception:
+            offset_sign = None
+        length = 'B' if self.m.group('length_{}'.format(ref_type)) == 'B' else 'W'
+        if ref_type == 'abs_reg':
+            if offset is None:
+                offset = 0
+            else:
+                if offset_sign == '+':
+                    offset = int(offset, 16)
+                else:
+                    offset = -int(offset, 16)
+        elif ref_type == 'word_reg':
+            base = int(base, 16)
+        elif ref_type == 'word_byte':
+            base = int(base, 16)
+            offset = int(offset, 16)
+        elif ref_type == 'word':
+            base = int(base, 16)
+        elif ref_type == 'label_reg':
+            base = self._get_subgroup_value(base_subgroup_name)
+        elif ref_type == 'label_byte':
+            base = self._get_subgroup_value(base_subgroup_name)
+            offset = int(offset, 16)
+        elif ref_type == 'label':
+            base = self._get_subgroup_value(base_subgroup_name)
+        else:
+            self._raise_error(
+                self.code, self.m.start(),
+                'Unknown reference type: {}'.format(ref_type),
+                UnknownReferenceType,
+            )
+        return Reference(base, offset, length)
+
+    def _case_label(self):
+        return Case(
+            TokenType.LABEL,
+            self._get_subgroup_value('label_value'),
+        )
+
+    def _case_string_literal(self):
+        return Case(
+            TokenType.STRING_LITERAL,
+            self._get_string_literal_value(),
+        )
+
+    def _case_comment(self):
+        return Case(
+            TokenType.COMMENT,
+            self._get_subgroup_value('comment_value'),
+        )
+
+    def _case_address_word_literal(self):
+        return Case(
+            TokenType.ADDRESS_WORD_LITERAL,
+            self._get_address_hex_literal_value(),
+        )
+
+    def _case_address_label(self):
+        return Case(
+            TokenType.ADDRESS_LABEL,
+            self._get_subgroup_value('address_label_value'),
+        )
+
+    def _case_word_literal(self):
+        return Case(
+            TokenType.WORD_LITERAL,
+            self._get_hex_literal_value(),
+        )
+
+    def _case_byte_literal(self):
+        return Case(
+            TokenType.BYTE_LITERAL,
+            self._get_hex_literal_value(),
+        )
+
+    def _case_ref(self, subcase_name):
+        token_type = {
+            'abs_reg': TokenType.ABS_REF_REG,
+            'word_reg': TokenType.REL_REF_WORD_REG,
+            'label_reg': TokenType.REL_REF_LABEL_REG,
+            'word_byte': TokenType.REL_REF_WORD_BYTE,
+            'label_byte': TokenType.REL_REF_LABEL_BYTE,
+            'word': TokenType.REL_REF_WORD,
+            'label': TokenType.REL_REF_LABEL,
+        }[subcase_name]
+        return Case(
+            token_type,
+            self._get_ref_value(subcase_name),
+        )
+
+    def _case_identifier(self):
+        if self.raw_value in self.instruction_names:
+            token_type = TokenType.INSTRUCTION
+        elif self.raw_value in self.macro_names:
+            token_type = TokenType.MACRO
+        elif self.raw_value in self.word_registers:
+            token_type = TokenType.WORD_REGISTER
+        elif self.raw_value in self.byte_registers:
+            token_type = TokenType.BYTE_REGISTER
+        else:
+            token_type = TokenType.IDENTIFIER
+        if token_type == TokenType.IDENTIFIER:
+            token_value = self.original_value
+        else:
+            token_value = self.raw_value
+        return Case(
+            token_type,
+            token_value,
+        )
+
+    def _case_whitespace(self):
+        return None
+
+    def _case_unexpected(self):
+        self._raise_error(
+            self.code, self.m.start(),
+            'Unexpected character "{}"'.format(self.original_value),
+            UnexpectedCharacterError,
+        )
+
+    def handle_case(self, case_name):
+        if '__' in case_name:
+            case_name, subcase_name = case_name.split('__', 1)
+            case = getattr(self, '_case_{}'.format(case_name))(subcase_name)
+        else:
+            case = getattr(self, '_case_{}'.format(case_name))()
+        if case is None:
+            return None
+        return Token(
+            case.token_type,
+            case.value,
+            self.m.start(),
+        )
+
+
 class TokenizerError(Exception):
     pass
 
@@ -88,17 +266,10 @@ class Tokenizer:
     '''
 
     def __init__(self, keywords):
-        self.instruction_names = set(keywords['instruction_names'])
-        self.macro_names = set(keywords['macro_names'])
-        self.word_registers = set(keywords['word_registers'])
-        self.byte_registers = set(keywords['byte_registers'])
+        self.keywords = keywords
         self.token_rules = self._get_token_rules()
-        self.token_rule_dict = {
-            token_rule.token_type.name: token_rule
-            for token_rule in self.token_rules
-        }
         self.tokenizer_regex = re.compile(r'|'.join(
-            r'(?P<{}>{})'.format(token_rule.token_type.name, token_rule.regex)
+            r'(?P<{}>{})'.format(token_rule.case, token_rule.regex)
             for token_rule in self.token_rules
         ))
 
@@ -112,168 +283,83 @@ class Tokenizer:
         self._log_error(code, pos, error_message)
         raise exception(error_message)
 
-    def _get_raw_token_value(self, code, m):
-        return m.group()
-
-    def _get_original_token_value(self, code, m):
-        return code[m.start():m.end()]
-
-    def _get_subgroup_value(self, code, m, subgroup):
-        return code[m.start(subgroup):m.end(subgroup)]
-
-    def _get_string_literal_value(self, code, m):
-        raw_value = code[m.start():m.end()]
-        try:
-            value = ast.literal_eval(raw_value)
-        except Exception:
-            self._raise_error(
-                code, m.start(),
-                'Invalid string literal: {}'.format(raw_value),
-                InvalidStringLiteralError,
-            )
-        return value
-
-    def _get_hex_literal_value(self, code, m):
-        return int(m.group(), 16)
-
-    def _get_address_hex_literal_value(self, code, m):
-        return int(m.group()[1:], 16)
-
-    def _get_ref_value(self, code, m, ref_type):
-        base_subgroup_name = 'base_{}'.format(ref_type)
-        base = m.group(base_subgroup_name)
-        try:
-            offset = m.group('offset_{}'.format(ref_type))
-        except Exception:
-            offset = None
-        try:
-            offset_sign = m.group('offset_sign_{}'.format(ref_type))
-        except Exception:
-            offset_sign = None
-        length = 'B' if m.group('length_{}'.format(ref_type)) == 'B' else 'W'
-        if ref_type == 'abs_reg':
-            if offset is None:
-                offset = 0
-            else:
-                if offset_sign == '+':
-                    offset = int(offset, 16)
-                else:
-                    offset = -int(offset, 16)
-        elif ref_type == 'word_reg':
-            base = int(base, 16)
-        elif ref_type == 'word_byte':
-            base = int(base, 16)
-            offset = int(offset, 16)
-        elif ref_type == 'word':
-            base = int(base, 16)
-        elif ref_type == 'label_reg':
-            base = self._get_subgroup_value(code, m, base_subgroup_name)
-        elif ref_type == 'label_byte':
-            base = self._get_subgroup_value(code, m, base_subgroup_name)
-            offset = int(offset, 16)
-        elif ref_type == 'label':
-            base = self._get_subgroup_value(code, m, base_subgroup_name)
-        else:
-            self._raise_error(
-                code, m.start(),
-                'Unknown reference type: {}'.format(ref_type),
-                UnknownReferenceType,
-            )
-        return Reference(base, offset, length)
-
     def _get_token_rules(self):
+        # NOTE: code.upper() is matched against these regex patterns
         basic_patterns = {
-            'identifier': r'[A-Za-z][a-zA-Z0-9_]*',
-            'word_literal': r'0X[\da-fA-F]{4}',
-            'byte_literal': r'0X[\da-fA-F]{2}',
-            'word_reg': r'({})'.format(r'|'.join(self.word_registers)),
-            'byte_reg': r'({})'.format(r'|'.join(self.byte_registers)),
+            'identifier': r'[A-Z_][A-Z0-9_]*',
+            'word_literal': r'0X[\dA-F]{4}',
+            'byte_literal': r'0X[\dA-F]{2}',
+            'word_reg': r'({})'.format(r'|'.join(self.keywords['word_registers'])),
+            'byte_reg': r'({})'.format(r'|'.join(self.keywords['byte_registers'])),
         }
         token_rules = [
-            TokenRule(
-                TokenType.LABEL,
+            Rule(
                 r'(?P<label_value>{}):'.format(basic_patterns['identifier']),
-                lambda code, m: self._get_subgroup_value(code, m, 'label_value'),
+                'label'
             ),
-            TokenRule(
-                TokenType.STRING_LITERAL,
+            Rule(
                 r'''("(?:[^\"]|\.)*"|'(?:[^\']|\.)*')''',  # TODO: make it match '\''
-                self._get_string_literal_value,
+                'string_literal'
             ),
-            TokenRule(
-                TokenType.COMMENT,
+            Rule(
                 r'\#(?P<comment_value>.*)',
-                lambda code, m: self._get_subgroup_value(code, m, 'comment_value'),
+                'comment'
             ),
-            TokenRule(
-                TokenType.ADDRESS_WORD_LITERAL,
+            Rule(
                 r'\^{}'.format(basic_patterns['word_literal']),
-                self._get_address_hex_literal_value,
+                'address_word_literal'
             ),
-            TokenRule(
-                TokenType.ADDRESS_LABEL,
+            Rule(
                 r'\^(?P<address_label_value>{})'.format(basic_patterns['identifier']),
-                lambda code, m: self._get_subgroup_value(code, m, 'address_label_value'),
+                'address_label'
             ),
-            TokenRule(
-                TokenType.WORD_LITERAL,
+            Rule(
                 basic_patterns['word_literal'],
-                self._get_hex_literal_value,
+                'word_literal'
             ),
-            TokenRule(
-                TokenType.BYTE_LITERAL,
+            Rule(
                 basic_patterns['byte_literal'],
-                self._get_hex_literal_value,
+                'byte_literal'
             ),
-            TokenRule(
-                TokenType.ABS_REF_REG,
+            Rule(
                 r'\[(?P<base_abs_reg>{})((?P<offset_sign_abs_reg>[+-])(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(basic_patterns['word_reg'], basic_patterns['byte_literal']),
-                lambda code, m: self._get_ref_value(code, m, 'abs_reg'),
+                'ref__abs_reg'
             ),
-            TokenRule(
-                TokenType.REL_REF_WORD_REG,
+            Rule(
                 r'\[(?P<base_word_reg>{})\+(?P<offset_word_reg>{})\](?P<length_word_reg>B?)'.format(basic_patterns['word_literal'], basic_patterns['word_reg']),
-                lambda code, m: self._get_ref_value(code, m, 'word_reg'),
+                'ref__word_reg'
             ),
-            TokenRule(
-                TokenType.REL_REF_LABEL_REG,
+            Rule(
                 r'\[(?P<base_label_reg>{})\+(?P<offset_label_reg>{})\](?P<length_label_reg>B?)'.format(basic_patterns['identifier'], basic_patterns['word_reg']),
-                lambda code, m: self._get_ref_value(code, m, 'label_reg'),
+                'ref__label_reg'
             ),
-            TokenRule(
-                TokenType.REL_REF_WORD_BYTE,
+            Rule(
                 r'\[(?P<base_word_byte>{})\+(?P<offset_word_byte>{})\](?P<length_word_byte>B?)'.format(basic_patterns['word_literal'], basic_patterns['byte_literal']),
-                lambda code, m: self._get_ref_value(code, m, 'word_byte'),
+                'ref__word_byte'
             ),
-            TokenRule(
-                TokenType.REL_REF_LABEL_BYTE,
+            Rule(
                 r'\[(?P<base_label_byte>{})\+(?P<offset_label_byte>{})\](?P<length_label_byte>B?)'.format(basic_patterns['identifier'], basic_patterns['byte_literal']),
-                lambda code, m: self._get_ref_value(code, m, 'label_byte'),
+                'ref__label_byte'
             ),
-            TokenRule(
-                TokenType.REL_REF_WORD,
+            Rule(
                 r'\[(?P<base_word>{})\](?P<length_word>B?)'.format(basic_patterns['word_literal']),
-                lambda code, m: self._get_ref_value(code, m, 'word'),
+                'ref__word'
             ),
-            TokenRule(
-                TokenType.REL_REF_LABEL,
+            Rule(
                 r'\[(?P<base_label>{})\](?P<length_label>B?)'.format(basic_patterns['identifier']),
-                lambda code, m: self._get_ref_value(code, m, 'label'),
+                'ref__label'
             ),
-            TokenRule(
-                TokenType.IDENTIFIER,
+            Rule(
                 basic_patterns['identifier'],
-                self._get_original_token_value,
+                'identifier'
             ),
-            TokenRule(
-                TokenType.WHITESPACE,
+            Rule(
                 r'\s+',
-                lambda code, m: None,
+                'whitespace'
             ),
-            TokenRule(
-                TokenType.UNEXPECTED,
+            Rule(
                 r'.',
-                lambda code, m: None,
+                'unexpected'
             ),
         ]
         return token_rules
@@ -281,40 +367,10 @@ class Tokenizer:
     def tokenize(self, code):
         tokens = []
         for m in self.tokenizer_regex.finditer(code.upper()):
-            token_type_name = m.lastgroup
-            raw_token_value = m.group()
-            if token_type_name == 'UNEXPECTED':
-                self._raise_error(
-                    code, m.start(),
-                    'Unexpected character "{}"'.format(raw_token_value),
-                    UnexpectedCharacterError,
-                )
-            if token_type_name == 'WHITESPACE':
+            case_name = m.lastgroup
+            case_handler = CaseHandler(code, m, self.keywords, self._raise_error)
+            token = case_handler.handle_case(case_name)
+            if token is None:
                 continue
-            if token_type_name == 'IDENTIFIER':
-                if raw_token_value in self.instruction_names:
-                    token_type = TokenType.INSTRUCTION
-                elif raw_token_value in self.macro_names:
-                    token_type = TokenType.MACRO
-                elif raw_token_value in self.word_registers:
-                    token_type = TokenType.WORD_REGISTER
-                elif raw_token_value in self.byte_registers:
-                    token_type = TokenType.BYTE_REGISTER
-                else:
-                    token_type = TokenType.IDENTIFIER
-                if token_type == TokenType.IDENTIFIER:
-                    token_value = self._get_original_token_value(code, m)
-                else:
-                    token_value = raw_token_value
-            else:
-                if token_type_name not in self.token_rule_dict:
-                    self._raise_error(
-                        code, m.start(),
-                        'Unknown token: {}'.format(token_type_name),
-                        UnknownTokenError,
-                    )
-                token_rule = self.token_rule_dict[token_type_name]
-                token_type = token_rule.token_type
-                token_value = token_rule.value(code, m)
-            tokens.append(Token(token_type, token_value, m.start()))
+            tokens.append(token)
         return tokens
