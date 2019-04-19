@@ -12,7 +12,7 @@ LOOP:
 # DATA
 
 TEXT:
-        DAT 'Hello world'
+        .DAT 'Hello world'
 
 TEXT_LENGTH:
-        DAT 0x0B
+        .DAT 0x0B

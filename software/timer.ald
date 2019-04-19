@@ -2,19 +2,19 @@
 
 
 MAIN:
-        SETINT 80 TIMER_HANDLER_1
-        SETTMR 00 02 000A 0000 80  # subtimer, mode, speed, phase, irq
-        SETINT 81 TIMER_HANDLER_2
-        SETTMR 01 02 000A 0005 81
+        SETINT 0x80 TIMER_HANDLER_1
+        SETTMR 0x00 0x02 0x000A 0x0000 0x80  # subtimer, mode, speed, phase, irq
+        SETINT 0x81 TIMER_HANDLER_2
+        SETTMR 0x01 0x02 0x000A 0x0005 0x81
 HALTLOOP:
         HLT
         JMP HALTLOOP
 
 
 TIMER_HANDLER_1:
-        PRINTCHAR 53  # S
+        PRINTCHAR 0x53  # S
         IRET
 
 TIMER_HANDLER_2:
-        PRINTCHAR 54  # T
+        PRINTCHAR 0x54  # T
         IRET

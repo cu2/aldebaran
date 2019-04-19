@@ -48,19 +48,19 @@ OK_1:
 # DATA
 
 INPUT_BUFFER_0:
-        DATN 0xFF 0x00
+        .DATN 0xFF 0x00
 
 INPUT_BUFFER_1:
-        DATN 0xFF 0x00
+        .DATN 0xFF 0x00
 
 ERROR_MESSAGE:
-        DAT 'Error'
+        .DAT 'Error'
 
 ERROR_MESSAGE_LENGTH:
-        DAT 0x05
+        .DAT 0x05
 
 TERMINAL_ID_0:
-        DAT 0x00
+        .DAT 0x00
 
 TERMINAL_ID_1:
-        DAT 0x01
+        .DAT 0x01
