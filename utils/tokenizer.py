@@ -134,7 +134,7 @@ class CaseHandler:
             self._raise_error(
                 self.code, self.m.start(),
                 'Unknown reference type: {}'.format(ref_type),
-                UnknownReferenceType,
+                UnknownReferenceTypeError,
             )
         return Reference(base, offset, length)
 
@@ -154,6 +154,19 @@ class CaseHandler:
         return Case(
             TokenType.COMMENT,
             self._get_subgroup_value('comment_value'),
+        )
+
+    def _case_macro(self):
+        macro_name = self.raw_value[1:]
+        if macro_name not in self.macro_names:
+            self._raise_error(
+                self.code, self.m.start(),
+                'Unknown macro: {}'.format(macro_name),
+                UnknownMacroError,
+            )
+        return Case(
+            TokenType.MACRO,
+            macro_name,
         )
 
     def _case_address_word_literal(self):
@@ -198,8 +211,6 @@ class CaseHandler:
     def _case_identifier(self):
         if self.raw_value in self.instruction_names:
             token_type = TokenType.INSTRUCTION
-        elif self.raw_value in self.macro_names:
-            token_type = TokenType.MACRO
         elif self.raw_value in self.word_registers:
             token_type = TokenType.WORD_REGISTER
         elif self.raw_value in self.byte_registers:
@@ -256,7 +267,11 @@ class UnknownTokenError(TokenizerError):
     pass
 
 
-class UnknownReferenceType(TokenizerError):
+class UnknownReferenceTypeError(TokenizerError):
+    pass
+
+
+class UnknownMacroError(TokenizerError):
     pass
 
 
@@ -304,6 +319,10 @@ class Tokenizer:
             Rule(
                 r'\#(?P<comment_value>.*)',
                 'comment'
+            ),
+            Rule(
+                r'\.{}'.format(basic_patterns['identifier']),
+                'macro'
             ),
             Rule(
                 r'\^{}'.format(basic_patterns['word_literal']),
