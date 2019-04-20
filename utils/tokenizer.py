@@ -17,12 +17,12 @@ Token = namedtuple('Token', [
 
 Reference = namedtuple('Reference', [
     'base',  # register, label, int
-    'offset',  # register, byte, signed byte
+    'offset',  # register, byte, signed byte, None
     'length',  # 'B' | 'W'
 ])
 
 
-TokenType = Enum('TokenType', [  # pylint: disable=C0103
+TokenType = Enum('TokenType', [  # pylint: disable=invalid-name
     'LABEL',
     'STRING_LITERAL',
     'COMMENT',
@@ -224,10 +224,7 @@ class CaseHandler:
         self.match = match
         self.raw_value = match.group()
         self.original_value = code[match.start():match.end()]
-        self.instruction_names = set(keywords['instruction_names'])
-        self.macro_names = set(keywords['macro_names'])
-        self.word_registers = set(keywords['word_registers'])
-        self.byte_registers = set(keywords['byte_registers'])
+        self.keywords = keywords
         self.tokenizer_raise_error = _raise_error
 
     def handle_case(self, case_name):
@@ -267,7 +264,7 @@ class CaseHandler:
 
     def _case_macro(self):
         macro_name = self.raw_value[1:]
-        if macro_name not in self.macro_names:
+        if macro_name not in self.keywords['macro_names']:
             self._raise_error(
                 'Unknown macro: {}'.format(macro_name),
                 UnknownMacroError,
@@ -317,11 +314,11 @@ class CaseHandler:
         )
 
     def _case_identifier(self):
-        if self.raw_value in self.instruction_names:
+        if self.raw_value in self.keywords['instruction_names']:
             token_type = TokenType.INSTRUCTION
-        elif self.raw_value in self.word_registers:
+        elif self.raw_value in self.keywords['word_registers']:
             token_type = TokenType.WORD_REGISTER
-        elif self.raw_value in self.byte_registers:
+        elif self.raw_value in self.keywords['byte_registers']:
             token_type = TokenType.BYTE_REGISTER
         else:
             token_type = TokenType.IDENTIFIER
@@ -367,11 +364,11 @@ class CaseHandler:
         base = self.match.group(base_subgroup_name)
         try:
             offset = self.match.group('offset_{}'.format(ref_type))
-        except Exception:
+        except IndexError:
             offset = None
         try:
             offset_sign = self.match.group('offset_sign_{}'.format(ref_type))
-        except Exception:
+        except IndexError:
             offset_sign = None
         length = 'B' if self.match.group('length_{}'.format(ref_type)) == 'B' else 'W'
         if ref_type == 'abs_reg':
@@ -418,6 +415,8 @@ Case = namedtuple('Case', [
     'value',  # same as Token.value
 ])
 
+
+# pylint: disable=missing-docstring
 
 class TokenizerError(Exception):
     pass
