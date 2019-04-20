@@ -1,16 +1,28 @@
+'''
+Token related stuff, like Token, TokenType, Tokenizer
+'''
+
 import ast
 import re
 from collections import namedtuple
 from enum import Enum
 
 
-Token = namedtuple('Token', ['type', 'value', 'pos'])
-Rule = namedtuple('Rule', ['regex', 'case'])
-Case = namedtuple('Case', ['token_type', 'value'])
-Reference = namedtuple('Reference', ['base', 'offset', 'length'])
+Token = namedtuple('Token', [
+    'type',  # TokenType
+    'value',  # int, string, Reference
+    'pos',  # int
+])
 
 
-TokenType = Enum('TokenType', [
+Reference = namedtuple('Reference', [
+    'base',  # register, label, int
+    'offset',  # register, byte, signed byte
+    'length',  # 'B' | 'W'
+])
+
+
+TokenType = Enum('TokenType', [  # pylint: disable=C0103
     'LABEL',
     'STRING_LITERAL',
     'COMMENT',
@@ -63,80 +75,177 @@ LABEL_REFERENCE_TYPES = {
 }
 
 
-class CaseHandler:
+class Tokenizer:
+    '''
+    Tokenizer based on: https://docs.python.org/3/library/re.html#writing-a-tokenizer
+    '''
 
-    def __init__(self, code, m, keywords, _raise_error):
+    def __init__(self, keywords):
+        self.keywords = keywords
+        self.token_rules = self._get_token_rules()
+        self.tokenizer_regex = re.compile(r'|'.join(
+            r'(?P<{}>{})'.format(token_rule.case, token_rule.regex)
+            for token_rule in self.token_rules
+        ))
+
+    def tokenize(self, code):
+        '''
+        Tokenize a single line of assembly code
+        '''
+        tokens = []
+        for match in self.tokenizer_regex.finditer(code.upper()):
+            case_name = match.lastgroup
+            case_handler = CaseHandler(code, match, self.keywords, self._raise_error)
+            token = case_handler.handle_case(case_name)
+            if token is None:
+                continue
+            tokens.append(token)
+        return tokens
+
+    def _get_token_rules(self):
+        # NOTE: code.upper() is matched against these regex patterns
+        basic_patterns = {
+            'identifier': r'[A-Z_][A-Z0-9_]*',
+            'word_literal': r'0X[\dA-F]{4}',
+            'byte_literal': r'0X[\dA-F]{2}',
+            'word_reg': r'({})'.format(r'|'.join(self.keywords['word_registers'])),
+            'byte_reg': r'({})'.format(r'|'.join(self.keywords['byte_registers'])),
+        }
+        token_rules = [
+            Rule(
+                r'(?P<label_value>{}):'.format(basic_patterns['identifier']),
+                'label'
+            ),
+            Rule(
+                r'''("(?:[^\"]|\.)*"|'(?:[^\']|\.)*')''',  # TODO: make it match '\''
+                'string_literal'
+            ),
+            Rule(
+                r'\#(?P<comment_value>.*)',
+                'comment'
+            ),
+            Rule(
+                r'\.{}'.format(basic_patterns['identifier']),
+                'macro'
+            ),
+            Rule(
+                r'\^{}'.format(basic_patterns['word_literal']),
+                'address_word_literal'
+            ),
+            Rule(
+                r'\^(?P<address_label_value>{})'.format(basic_patterns['identifier']),
+                'address_label'
+            ),
+            Rule(
+                basic_patterns['word_literal'],
+                'word_literal'
+            ),
+            Rule(
+                basic_patterns['byte_literal'],
+                'byte_literal'
+            ),
+            Rule(
+                r'\[(?P<base_abs_reg>{})((?P<offset_sign_abs_reg>[+-])(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(
+                    basic_patterns['word_reg'], basic_patterns['byte_literal']
+                ),
+                'ref__abs_reg'
+            ),
+            Rule(
+                r'\[(?P<base_word_reg>{})\+(?P<offset_word_reg>{})\](?P<length_word_reg>B?)'.format(
+                    basic_patterns['word_literal'], basic_patterns['word_reg']
+                ),
+                'ref__word_reg'
+            ),
+            Rule(
+                r'\[(?P<base_label_reg>{})\+(?P<offset_label_reg>{})\](?P<length_label_reg>B?)'.format(
+                    basic_patterns['identifier'], basic_patterns['word_reg']
+                ),
+                'ref__label_reg'
+            ),
+            Rule(
+                r'\[(?P<base_word_byte>{})\+(?P<offset_word_byte>{})\](?P<length_word_byte>B?)'.format(
+                    basic_patterns['word_literal'], basic_patterns['byte_literal']
+                ),
+                'ref__word_byte'
+            ),
+            Rule(
+                r'\[(?P<base_label_byte>{})\+(?P<offset_label_byte>{})\](?P<length_label_byte>B?)'.format(
+                    basic_patterns['identifier'], basic_patterns['byte_literal']
+                ),
+                'ref__label_byte'
+            ),
+            Rule(
+                r'\[(?P<base_word>{})\](?P<length_word>B?)'.format(basic_patterns['word_literal']),
+                'ref__word'
+            ),
+            Rule(
+                r'\[(?P<base_label>{})\](?P<length_label>B?)'.format(basic_patterns['identifier']),
+                'ref__label'
+            ),
+            Rule(
+                basic_patterns['identifier'],
+                'identifier'
+            ),
+            Rule(
+                r'\s+',
+                'whitespace'
+            ),
+            Rule(
+                r'.',
+                'unexpected'
+            ),
+        ]
+        return token_rules
+
+    def _log_error(self, code, pos, error_message):
+        # TODO: log instead of print
+        print('ERROR:', error_message)
+        print(code)
+        print(' ' * pos + '^')
+
+    def _raise_error(self, code, pos, error_message, exception):
+        self._log_error(code, pos, error_message)
+        raise exception(error_message)
+
+
+Rule = namedtuple('Rule', [
+    'regex',  # raw string (regex)
+    'case',  # string (casename or casename__subcasename of CaseHandler)
+])
+
+
+class CaseHandler:
+    '''
+    Handle cases of the tokenizer regex
+    '''
+
+    def __init__(self, code, match, keywords, _raise_error):
         self.code = code
-        self.m = m
-        self.raw_value = m.group()
-        self.original_value = code[m.start():m.end()]
+        self.match = match
+        self.raw_value = match.group()
+        self.original_value = code[match.start():match.end()]
         self.instruction_names = set(keywords['instruction_names'])
         self.macro_names = set(keywords['macro_names'])
         self.word_registers = set(keywords['word_registers'])
         self.byte_registers = set(keywords['byte_registers'])
-        self._raise_error = _raise_error
+        self.tokenizer_raise_error = _raise_error
 
-    def _get_subgroup_value(self, subgroup):
-        return self.code[self.m.start(subgroup):self.m.end(subgroup)]
-
-    def _get_string_literal_value(self):
-        try:
-            value = ast.literal_eval(self.original_value)
-        except Exception:
-            self._raise_error(
-                self.code, self.m.start(),
-                'Invalid string literal: {}'.format(self.original_value),
-                InvalidStringLiteralError,
-            )
-        return value
-
-    def _get_address_hex_literal_value(self):
-        return int(self.raw_value[1:], 16)
-
-    def _get_hex_literal_value(self):
-        return int(self.raw_value, 16)
-
-    def _get_ref_value(self, ref_type):
-        base_subgroup_name = 'base_{}'.format(ref_type)
-        base = self.m.group(base_subgroup_name)
-        try:
-            offset = self.m.group('offset_{}'.format(ref_type))
-        except Exception:
-            offset = None
-        try:
-            offset_sign = self.m.group('offset_sign_{}'.format(ref_type))
-        except Exception:
-            offset_sign = None
-        length = 'B' if self.m.group('length_{}'.format(ref_type)) == 'B' else 'W'
-        if ref_type == 'abs_reg':
-            if offset is None:
-                offset = 0
-            else:
-                if offset_sign == '+':
-                    offset = int(offset, 16)
-                else:
-                    offset = -int(offset, 16)
-        elif ref_type == 'word_reg':
-            base = int(base, 16)
-        elif ref_type == 'word_byte':
-            base = int(base, 16)
-            offset = int(offset, 16)
-        elif ref_type == 'word':
-            base = int(base, 16)
-        elif ref_type == 'label_reg':
-            base = self._get_subgroup_value(base_subgroup_name)
-        elif ref_type == 'label_byte':
-            base = self._get_subgroup_value(base_subgroup_name)
-            offset = int(offset, 16)
-        elif ref_type == 'label':
-            base = self._get_subgroup_value(base_subgroup_name)
+    def handle_case(self, case_name):
+        '''
+        Return token for a given case
+        '''
+        if '__' in case_name:
+            case_name, subcase_name = case_name.split('__', 1)
+            case = getattr(self, '_case_{}'.format(case_name))(subcase_name)
         else:
-            self._raise_error(
-                self.code, self.m.start(),
-                'Unknown reference type: {}'.format(ref_type),
-                UnknownReferenceTypeError,
-            )
-        return Reference(base, offset, length)
+            case = getattr(self, '_case_{}'.format(case_name))()
+        if case is None:
+            return None
+        return Token(
+            case.token_type,
+            case.value,
+            self.match.start(),
+        )
 
     def _case_label(self):
         return Case(
@@ -160,7 +269,6 @@ class CaseHandler:
         macro_name = self.raw_value[1:]
         if macro_name not in self.macro_names:
             self._raise_error(
-                self.code, self.m.start(),
                 'Unknown macro: {}'.format(macro_name),
                 UnknownMacroError,
             )
@@ -231,24 +339,84 @@ class CaseHandler:
 
     def _case_unexpected(self):
         self._raise_error(
-            self.code, self.m.start(),
             'Unexpected character "{}"'.format(self.original_value),
             UnexpectedCharacterError,
         )
 
-    def handle_case(self, case_name):
-        if '__' in case_name:
-            case_name, subcase_name = case_name.split('__', 1)
-            case = getattr(self, '_case_{}'.format(case_name))(subcase_name)
+    def _get_subgroup_value(self, subgroup):
+        return self.code[self.match.start(subgroup):self.match.end(subgroup)]
+
+    def _get_string_literal_value(self):
+        try:
+            value = ast.literal_eval(self.original_value)
+        except Exception:
+            self._raise_error(
+                'Invalid string literal: {}'.format(self.original_value),
+                InvalidStringLiteralError,
+            )
+        return value
+
+    def _get_address_hex_literal_value(self):
+        return int(self.raw_value[1:], 16)
+
+    def _get_hex_literal_value(self):
+        return int(self.raw_value, 16)
+
+    def _get_ref_value(self, ref_type):
+        base_subgroup_name = 'base_{}'.format(ref_type)
+        base = self.match.group(base_subgroup_name)
+        try:
+            offset = self.match.group('offset_{}'.format(ref_type))
+        except Exception:
+            offset = None
+        try:
+            offset_sign = self.match.group('offset_sign_{}'.format(ref_type))
+        except Exception:
+            offset_sign = None
+        length = 'B' if self.match.group('length_{}'.format(ref_type)) == 'B' else 'W'
+        if ref_type == 'abs_reg':
+            if offset is None:
+                offset = 0
+            else:
+                if offset_sign == '+':
+                    offset = int(offset, 16)
+                else:
+                    offset = -int(offset, 16)
+        elif ref_type == 'word_reg':
+            base = int(base, 16)
+        elif ref_type == 'word_byte':
+            base = int(base, 16)
+            offset = int(offset, 16)
+        elif ref_type == 'word':
+            base = int(base, 16)
+        elif ref_type == 'label_reg':
+            base = self._get_subgroup_value(base_subgroup_name)
+        elif ref_type == 'label_byte':
+            base = self._get_subgroup_value(base_subgroup_name)
+            offset = int(offset, 16)
+        elif ref_type == 'label':
+            base = self._get_subgroup_value(base_subgroup_name)
         else:
-            case = getattr(self, '_case_{}'.format(case_name))()
-        if case is None:
-            return None
-        return Token(
-            case.token_type,
-            case.value,
-            self.m.start(),
+            self._raise_error(
+                'Unknown reference type: {}'.format(ref_type),
+                UnknownReferenceTypeError,
+            )
+        return Reference(base, offset, length)
+
+    def _raise_error(self, error_message, exception):
+        return self.tokenizer_raise_error(
+            self.code,
+            self.match.start(),
+            error_message,
+            exception,
         )
+
+
+
+Case = namedtuple('Case', [
+    'token_type',  # TokenType
+    'value',  # same as Token.value
+])
 
 
 class TokenizerError(Exception):
@@ -273,123 +441,3 @@ class UnknownReferenceTypeError(TokenizerError):
 
 class UnknownMacroError(TokenizerError):
     pass
-
-
-class Tokenizer:
-    '''
-    Based on: https://docs.python.org/3/library/re.html#writing-a-tokenizer
-    '''
-
-    def __init__(self, keywords):
-        self.keywords = keywords
-        self.token_rules = self._get_token_rules()
-        self.tokenizer_regex = re.compile(r'|'.join(
-            r'(?P<{}>{})'.format(token_rule.case, token_rule.regex)
-            for token_rule in self.token_rules
-        ))
-
-    def _log_error(self, code, pos, error_message):
-        # TODO: log instead of print
-        print('ERROR:', error_message)
-        print(code)
-        print(' ' * pos + '^')
-
-    def _raise_error(self, code, pos, error_message, exception):
-        self._log_error(code, pos, error_message)
-        raise exception(error_message)
-
-    def _get_token_rules(self):
-        # NOTE: code.upper() is matched against these regex patterns
-        basic_patterns = {
-            'identifier': r'[A-Z_][A-Z0-9_]*',
-            'word_literal': r'0X[\dA-F]{4}',
-            'byte_literal': r'0X[\dA-F]{2}',
-            'word_reg': r'({})'.format(r'|'.join(self.keywords['word_registers'])),
-            'byte_reg': r'({})'.format(r'|'.join(self.keywords['byte_registers'])),
-        }
-        token_rules = [
-            Rule(
-                r'(?P<label_value>{}):'.format(basic_patterns['identifier']),
-                'label'
-            ),
-            Rule(
-                r'''("(?:[^\"]|\.)*"|'(?:[^\']|\.)*')''',  # TODO: make it match '\''
-                'string_literal'
-            ),
-            Rule(
-                r'\#(?P<comment_value>.*)',
-                'comment'
-            ),
-            Rule(
-                r'\.{}'.format(basic_patterns['identifier']),
-                'macro'
-            ),
-            Rule(
-                r'\^{}'.format(basic_patterns['word_literal']),
-                'address_word_literal'
-            ),
-            Rule(
-                r'\^(?P<address_label_value>{})'.format(basic_patterns['identifier']),
-                'address_label'
-            ),
-            Rule(
-                basic_patterns['word_literal'],
-                'word_literal'
-            ),
-            Rule(
-                basic_patterns['byte_literal'],
-                'byte_literal'
-            ),
-            Rule(
-                r'\[(?P<base_abs_reg>{})((?P<offset_sign_abs_reg>[+-])(?P<offset_abs_reg>{}))?\](?P<length_abs_reg>B?)'.format(basic_patterns['word_reg'], basic_patterns['byte_literal']),
-                'ref__abs_reg'
-            ),
-            Rule(
-                r'\[(?P<base_word_reg>{})\+(?P<offset_word_reg>{})\](?P<length_word_reg>B?)'.format(basic_patterns['word_literal'], basic_patterns['word_reg']),
-                'ref__word_reg'
-            ),
-            Rule(
-                r'\[(?P<base_label_reg>{})\+(?P<offset_label_reg>{})\](?P<length_label_reg>B?)'.format(basic_patterns['identifier'], basic_patterns['word_reg']),
-                'ref__label_reg'
-            ),
-            Rule(
-                r'\[(?P<base_word_byte>{})\+(?P<offset_word_byte>{})\](?P<length_word_byte>B?)'.format(basic_patterns['word_literal'], basic_patterns['byte_literal']),
-                'ref__word_byte'
-            ),
-            Rule(
-                r'\[(?P<base_label_byte>{})\+(?P<offset_label_byte>{})\](?P<length_label_byte>B?)'.format(basic_patterns['identifier'], basic_patterns['byte_literal']),
-                'ref__label_byte'
-            ),
-            Rule(
-                r'\[(?P<base_word>{})\](?P<length_word>B?)'.format(basic_patterns['word_literal']),
-                'ref__word'
-            ),
-            Rule(
-                r'\[(?P<base_label>{})\](?P<length_label>B?)'.format(basic_patterns['identifier']),
-                'ref__label'
-            ),
-            Rule(
-                basic_patterns['identifier'],
-                'identifier'
-            ),
-            Rule(
-                r'\s+',
-                'whitespace'
-            ),
-            Rule(
-                r'.',
-                'unexpected'
-            ),
-        ]
-        return token_rules
-
-    def tokenize(self, code):
-        tokens = []
-        for m in self.tokenizer_regex.finditer(code.upper()):
-            case_name = m.lastgroup
-            case_handler = CaseHandler(code, m, self.keywords, self._raise_error)
-            token = case_handler.handle_case(case_name)
-            if token is None:
-                continue
-            tokens.append(token)
-        return tokens
