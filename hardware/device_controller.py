@@ -27,9 +27,9 @@ class DeviceController(utils.Hardware):
             try:
                 ioport_number = int(ioport_number)
                 if ioport_number < 0:
-                    raise ValueError
+                    raise ValueError()
                 if ioport_number >= len(self.server.ioports):
-                    raise ValueError
+                    raise ValueError()
             except ValueError:
                 self.send_response(400)  # Bad Request
                 self.end_headers()

@@ -28,7 +28,7 @@ class InterruptController(utils.Hardware):
         try:
             interrupt_number = int(interrupt_number)
             if interrupt_number < 0 or interrupt_number > 255:
-                raise ValueError
+                raise ValueError()
         except ValueError:
             self.log.log('interrupt_controller', 'Illegal IRQ: %s' % interrupt_number)
             return
