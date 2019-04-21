@@ -98,12 +98,11 @@ def get_operand_opcode(token):
             _get_opbyte(OpLen.BYTE, OpType.REGISTER, token.value)
         ]
     if token.type in {TokenType.ABS_REF_REG, TokenType.REL_REF_WORD, TokenType.REL_REF_WORD_BYTE, TokenType.REL_REF_WORD_REG}:
-        if token.value.length == 'B':
-            oplen = OpLen.BYTE
-        elif token.value.length == 'W':
-            oplen = OpLen.WORD
-        else:
-            raise InvalidTokenLengthError()
+        ref = token.value
+        oplen = {
+            'B': OpLen.BYTE,
+            'W': OpLen.WORD,
+        }[ref.length]
         optype = {
             TokenType.ABS_REF_REG: OpType.ABS_REF_REG,
             TokenType.REL_REF_WORD: OpType.REL_REF_WORD,
@@ -111,19 +110,17 @@ def get_operand_opcode(token):
             TokenType.REL_REF_WORD_REG: OpType.REL_REF_WORD_REG,
         }[token.type]
         if token.type == TokenType.ABS_REF_REG:
-            opreg = token.value.base
-        elif token.type == TokenType.REL_REF_WORD_REG:
-            opreg = token.value.offset
-        else:
-            opreg = None
-        if token.type == TokenType.ABS_REF_REG:
-            oprest = utils.byte_to_binary(token.value.offset, signed=True)  # [AX-12]
+            opreg = ref.base
+            oprest = utils.byte_to_binary(ref.offset, signed=True)  # [AX-12]
         elif token.type == TokenType.REL_REF_WORD:
-            oprest = utils.word_to_binary(token.value.base, signed=True)  # [-1234]
+            opreg = None
+            oprest = utils.word_to_binary(ref.base, signed=True)  # [-1234]
         elif token.type == TokenType.REL_REF_WORD_BYTE:
-            oprest = utils.word_to_binary(token.value.base, signed=True) + utils.byte_to_binary(token.value.offset)  # [-1234+56]
+            opreg = None
+            oprest = utils.word_to_binary(ref.base, signed=True) + utils.byte_to_binary(ref.offset)  # [-1234+56]
         elif token.type == TokenType.REL_REF_WORD_REG:
-            oprest = utils.word_to_binary(token.value.base, signed=True)  # [-1234+AX]
+            opreg = ref.offset
+            oprest = utils.word_to_binary(ref.base, signed=True)  # [-1234+AX]
         return [
             _get_opbyte(oplen, optype, opreg)
         ] + oprest
@@ -223,14 +220,15 @@ def get_operand_value(operand, cpu, ram, ip):
     '''
     Get operand value when executing an instruction
     '''
+    if operand.optype == OpType.EXTENDED:
+        raise InvalidOperandError('Extended optype not supported yet.')
     if operand.optype == OpType.VALUE:
         return operand.opvalue
     if operand.optype == OpType.ADDRESS:
         return ip + operand.opvalue
     if operand.optype == OpType.REGISTER:
         return cpu.get_register(operand.opreg)
-    if operand.optype == OpType.EXTENDED:
-        raise InvalidOperandError('Extended optype not supported yet.')
+
     address = _get_reference_address(operand, cpu, ip)
     if operand.oplen == OpLen.BYTE:
         return ram.read_byte(address)
@@ -242,19 +240,21 @@ def set_operand_value(operand, value, cpu, ram, ip):
     '''
     Set operand value when executing an instruction
     '''
+    if operand.optype == OpType.EXTENDED:
+        raise InvalidOperandError('Extended optype not supported yet.')
     if operand.optype == OpType.VALUE:
         raise InvalidWriteOperationError('Cannot set value type operand.')
     if operand.optype == OpType.ADDRESS:
         raise InvalidWriteOperationError('Cannot set address type operand.')
     if operand.optype == OpType.REGISTER:
-        return cpu.set_register(operand.opreg, value)
-    if operand.optype == OpType.EXTENDED:
-        raise InvalidOperandError('Extended optype not supported yet.')
+        cpu.set_register(operand.opreg, value)
+        return
+
     address = _get_reference_address(operand, cpu, ip)
     if operand.oplen == OpLen.BYTE:
-        return ram.write_byte(address, value)
+        ram.write_byte(address, value)
     else:
-        return ram.write_word(address, value)
+        ram.write_word(address, value)
 
 
 def _get_reference_address(operand, cpu, ip):
@@ -318,10 +318,6 @@ class InvalidRegisterNameError(RegisterError):
 
 
 class InvalidRegisterCodeError(RegisterError):
-    pass
-
-
-class InvalidTokenLengthError(Exception):
     pass
 
 

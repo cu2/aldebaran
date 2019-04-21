@@ -1,13 +1,16 @@
 import unittest
 from unittest.mock import Mock
 
-from instructions.operands import _get_register_code_by_name, _get_register_name_by_code,\
-    InvalidRegisterNameError, InvalidRegisterCodeError,\
-    _get_opbyte,\
-    get_operand_opcode, OpLen, OpType,\
-    InvalidTokenLengthError, InvalidTokenError,\
-    parse_operand_buffer, InvalidOperandError, InsufficientOperandBufferError,\
-    _get_reference_address, Operand
+from instructions.operands import (
+    Operand, OpLen, OpType,
+    get_operand_opcode, parse_operand_buffer,
+    get_operand_value, set_operand_value,
+    _get_reference_address, _get_opbyte,
+    _get_register_code_by_name, _get_register_name_by_code,
+    InvalidRegisterNameError, InvalidRegisterCodeError,
+    InvalidTokenError,
+    InvalidOperandError, InvalidWriteOperationError, InsufficientOperandBufferError,
+)
 from utils.tokenizer import Token, Reference, TokenType
 from utils.utils import WordOutOfRangeError, ByteOutOfRangeError
 
@@ -31,6 +34,8 @@ class TestGetOperandOpcode(unittest.TestCase):
             _get_opbyte(OpLen.WORD, OpType.ADDRESS),
             0xFF, 0xFF,
         ])
+        with self.assertRaises(WordOutOfRangeError):
+            get_operand_opcode(Token(TokenType.ADDRESS_WORD_LITERAL, 35000, 0))
 
     def test_register(self):
         self.assertListEqual(get_operand_opcode(Token(TokenType.WORD_REGISTER, 'AX', 0)), [
@@ -50,6 +55,10 @@ class TestGetOperandOpcode(unittest.TestCase):
             _get_opbyte(OpLen.BYTE, OpType.ABS_REF_REG, 'BX'),
             0x00,
         ])
+        self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 1, 'B'), 0)), [
+            _get_opbyte(OpLen.BYTE, OpType.ABS_REF_REG, 'BX'),
+            0x01,
+        ])
         self.assertListEqual(get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', -1, 'W'), 0)), [
             _get_opbyte(OpLen.WORD, OpType.ABS_REF_REG, 'BX'),
             0xFF,
@@ -57,9 +66,7 @@ class TestGetOperandOpcode(unittest.TestCase):
         with self.assertRaises(InvalidRegisterNameError):
             get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('XX', 0, 'W'), 0))
         with self.assertRaises(ByteOutOfRangeError):
-            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 256, 'W'), 0))
-        with self.assertRaises(InvalidTokenLengthError):
-            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('AX', 0, '?'), 0))
+            get_operand_opcode(Token(TokenType.ABS_REF_REG, Reference('BX', 150, 'W'), 0))
 
     def test_rel_ref(self):
         self.assertListEqual(get_operand_opcode(Token(TokenType.REL_REF_WORD, Reference(-1, 0, 'B'), 0)), [
@@ -103,6 +110,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
         self.assertEqual(opcode_length, 4)
+
         operands, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.BYTE, OpType.VALUE),
             0xFF, 0xFF, 0xFF, 0xFF,
@@ -129,6 +137,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
         self.assertEqual(opcode_length, 4)
+
         with self.assertRaises(InvalidOperandError):
             parse_operand_buffer([
                 _get_opbyte(OpLen.BYTE, OpType.ADDRESS),
@@ -148,6 +157,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
         self.assertEqual(opcode_length, 2)
+
         operands, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.BYTE, OpType.REGISTER, 'AH'),
             0xFF, 0xFF, 0xFF, 0xFF,
@@ -160,9 +170,15 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
         self.assertEqual(opcode_length, 2)
+
         with self.assertRaises(InvalidRegisterCodeError):
             parse_operand_buffer([
                 _get_opbyte(OpLen.BYTE, OpType.REGISTER, 'BX'),
+                0xFF, 0xFF, 0xFF, 0xFF,
+            ], 1)
+        with self.assertRaises(InvalidRegisterNameError):
+            parse_operand_buffer([
+                _get_opbyte(OpLen.WORD, OpType.REGISTER, 'XX'),
                 0xFF, 0xFF, 0xFF, 0xFF,
             ], 1)
 
@@ -179,6 +195,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opbase)
         self.assertEqual(operands[0].opoffset, -1)
         self.assertEqual(opcode_length, 3)
+
         with self.assertRaises(InvalidRegisterCodeError):
             parse_operand_buffer([
                 _get_opbyte(OpLen.WORD, OpType.ABS_REF_REG, 'AH'),
@@ -209,7 +226,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opreg)
         self.assertIsNone(operands[0].opvalue)
         self.assertEqual(operands[0].opbase, -1)
-        self.assertEqual(operands[0].opoffset, 0xFF)
+        self.assertEqual(operands[0].opoffset, 255)
         self.assertEqual(opcode_length, 5)
 
         operands, opcode_length = parse_operand_buffer([
@@ -252,6 +269,210 @@ class TestParseOperandBuffer(unittest.TestCase):
                 _get_opbyte(OpLen.WORD, OpType.VALUE),
                 0xFF,
             ], 1)
+
+
+class TestGetOperandValue(unittest.TestCase):
+
+    def setUp(self):
+        self.cpu = Mock()
+        self.ram = Mock()
+        self.cpu.get_register = Mock()
+        self.cpu.get_register.return_value = 0xA0B0
+        self.ram.read_byte = Mock()
+        self.ram.read_byte.return_value = 0xCC
+        self.ram.read_word = Mock()
+        self.ram.read_word.return_value = 0xCCDD
+
+    def test_value(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.BYTE, OpType.VALUE, None, 255, None, None),
+            self.cpu, self.ram, 0x1234,
+        ), 255)
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.WORD, OpType.VALUE, None, 65535, None, None),
+            self.cpu, self.ram, 0x1234,
+        ), 65535)
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.read_byte.call_count, 0)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_address(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.WORD, OpType.ADDRESS, None, 1, None, None),
+            self.cpu, self.ram, 0x1234,
+        ), 0x1235)
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.WORD, OpType.ADDRESS, None, -1, None, None),
+            self.cpu, self.ram, 0x1234,
+        ), 0x1233)
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.read_byte.call_count, 0)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_register(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.WORD, OpType.REGISTER, 'AX', 1, None, None),
+            self.cpu, self.ram, 0x1234,
+        ), 0xA0B0)
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.read_byte.call_count, 0)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_abs_ref_reg_b(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.BYTE, OpType.ABS_REF_REG, 'AX', None, None, 0x01),
+            self.cpu, self.ram, 0x1234,
+        ), 0xCC)
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.read_byte.call_count, 1)
+        self.assertEqual(self.ram.read_byte.call_args_list[0][0][0], 0xA0B1)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_abs_ref_reg_w(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.WORD, OpType.ABS_REF_REG, 'AX', None, None, 0x01),
+            self.cpu, self.ram, 0x1234,
+        ), 0xCCDD)
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.read_byte.call_count, 0)
+        self.assertEqual(self.ram.read_word.call_count, 1)
+        self.assertEqual(self.ram.read_word.call_args_list[0][0][0], 0xA0B1)
+
+    def test_rel_ref_word(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD, None, None, -0x1111, None),
+            self.cpu, self.ram, 0x1234,
+        ), 0xCC)
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.read_byte.call_count, 1)
+        self.assertEqual(self.ram.read_byte.call_args_list[0][0][0], 0x0123)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_rel_ref_word_byte(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD_BYTE, None, None, -0x1111, 0x22),
+            self.cpu, self.ram, 0x1234,
+        ), 0xCC)
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.read_byte.call_count, 1)
+        self.assertEqual(self.ram.read_byte.call_args_list[0][0][0], 0x0145)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+    def test_rel_ref_word_reg(self):
+        self.assertEqual(get_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD_REG, 'AX', None, -0x1111, None),
+            self.cpu, self.ram, 0x1234,
+        ), 0xCC)
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.read_byte.call_count, 1)
+        self.assertEqual(self.ram.read_byte.call_args_list[0][0][0], 0xA1D3)
+        self.assertEqual(self.ram.read_word.call_count, 0)
+
+
+class TestSetOperandValue(unittest.TestCase):
+
+    def setUp(self):
+        self.cpu = Mock()
+        self.ram = Mock()
+        self.cpu.get_register = Mock()
+        self.cpu.get_register.return_value = 0xA0B0
+        self.cpu.set_register = Mock()
+        self.ram.write_byte = Mock()
+        self.ram.write_word = Mock()
+
+    def test_readonly(self):
+        with self.assertRaises(InvalidWriteOperationError):
+            set_operand_value(
+                Operand(OpLen.BYTE, OpType.VALUE, None, 255, None, None),
+                0x44,
+                self.cpu, self.ram, 0x1234,
+            )
+        with self.assertRaises(InvalidWriteOperationError):
+            set_operand_value(
+                Operand(OpLen.WORD, OpType.ADDRESS, None, -1, None, None),
+                0x3344,
+                self.cpu, self.ram, 0x1234,
+            )
+
+    def test_register(self):
+        set_operand_value(
+            Operand(OpLen.WORD, OpType.REGISTER, 'AX', 1, None, None),
+            0x3344,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.cpu.set_register.call_count, 1)
+        self.assertEqual(self.cpu.set_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.cpu.set_register.call_args_list[0][0][1], 0x3344)
+        self.assertEqual(self.ram.write_byte.call_count, 0)
+        self.assertEqual(self.ram.write_word.call_count, 0)
+
+    def test_abs_ref_reg_b(self):
+        set_operand_value(
+            Operand(OpLen.BYTE, OpType.ABS_REF_REG, 'AX', None, None, 0x01),
+            0x33,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.write_byte.call_count, 1)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][0], 0xA0B1)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][1], 0x33)
+        self.assertEqual(self.ram.write_word.call_count, 0)
+
+    def test_abs_ref_reg_w(self):
+        set_operand_value(
+            Operand(OpLen.WORD, OpType.ABS_REF_REG, 'AX', None, None, 0x01),
+            0x3344,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.write_byte.call_count, 0)
+        self.assertEqual(self.ram.write_word.call_count, 1)
+        self.assertEqual(self.ram.write_word.call_args_list[0][0][0], 0xA0B1)
+        self.assertEqual(self.ram.write_word.call_args_list[0][0][1], 0x3344)
+
+    def test_rel_ref_word(self):
+        set_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD, None, None, -0x1111, None),
+            0x33,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.write_byte.call_count, 1)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][0], 0x0123)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][1], 0x33)
+        self.assertEqual(self.ram.write_word.call_count, 0)
+
+    def test_rel_ref_word_byte(self):
+        set_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD_BYTE, None, None, -0x1111, 0x22),
+            0x33,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 0)
+        self.assertEqual(self.ram.write_byte.call_count, 1)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][0], 0x0145)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][1], 0x33)
+        self.assertEqual(self.ram.write_word.call_count, 0)
+
+    def test_rel_ref_word_reg(self):
+        set_operand_value(
+            Operand(OpLen.BYTE, OpType.REL_REF_WORD_REG, 'AX', None, -0x1111, None),
+            0x33,
+            self.cpu, self.ram, 0x1234,
+        )
+        self.assertEqual(self.cpu.get_register.call_count, 1)
+        self.assertEqual(self.cpu.get_register.call_args_list[0][0][0], 'AX')
+        self.assertEqual(self.ram.write_byte.call_count, 1)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][0], 0xA1D3)
+        self.assertEqual(self.ram.write_byte.call_args_list[0][0][1], 0x33)
+        self.assertEqual(self.ram.write_word.call_count, 0)
 
 
 class TestGetReferenceAddress(unittest.TestCase):
