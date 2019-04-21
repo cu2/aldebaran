@@ -3,152 +3,152 @@
 
 ## Arithmetic
 
-### `ADD <op0> <op1> <op2>`
+### ADD &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Add: &lt;op0&gt; = &lt;op1&gt; + &lt;op2&gt;
 
-### `DEC <op0> <op1>`
+### DEC &lt;op0&gt; &lt;op1&gt;
 Decrease: &lt;op0&gt; -= &lt;op1&gt;
 
-### `DIV <op0> <op1> <op2>`
+### DIV &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Divide (unsigned): &lt;op0&gt; = &lt;op1&gt; / &lt;op2&gt;
 
-### `IDIV <op0> <op1> <op2>`
+### IDIV &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Divide (signed): &lt;op0&gt; = &lt;op1&gt; / &lt;op2&gt;
 
-### `IMOD <op0> <op1> <op2>`
+### IMOD &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Modulo (signed): &lt;op0&gt; = &lt;op1&gt; % &lt;op2&gt;
 
-### `IMUL <op0> <op1> <op2>`
+### IMUL &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Multiply (signed): &lt;op0&gt; = &lt;op1&gt; * &lt;op2&gt;
 
-### `INC <op0> <op1>`
+### INC &lt;op0&gt; &lt;op1&gt;
 Increase: &lt;op0&gt; += &lt;op1&gt;
 
-### `MOD <op0> <op1> <op2>`
+### MOD &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Modulo (unsigned): &lt;op0&gt; = &lt;op1&gt; % &lt;op2&gt;
 
-### `MUL <op0> <op1> <op2>`
+### MUL &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Multiply (unsigned): &lt;op0&gt; = &lt;op1&gt; * &lt;op2&gt;
 
-### `NEG <op0> <op1>`
+### NEG &lt;op0&gt; &lt;op1&gt;
 Negate: &lt;op0&gt; = -&lt;op1&gt;
 
-### `SUB <op0> <op1> <op2>`
+### SUB &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Substract: &lt;op0&gt; = &lt;op1&gt; - &lt;op2&gt;
 
 
 ## Control flow
 
-### `CALL <op0>`
+### CALL &lt;op0&gt;
 Call subroutine at address &lt;op0&gt;
 
-### `CLI`
+### CLI
 Disable interrupts
 
-### `ENTER <op0>`
+### ENTER &lt;op0&gt;
 Enter subroutine: set frame pointer and allocate &lt;op0&gt; bytes on stack for local variables
 
-### `INT <op0>`
+### INT &lt;op0&gt;
 Call interrupt &lt;op0&gt;
 
-### `IRET`
+### IRET
 Return from interrupt
 
-### `JA <op0> <op1> <op2>`
+### JA &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &gt; &lt;op1&gt; (unsigned)
 
-### `JAE <op0> <op1> <op2>`
+### JAE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &gt;= &lt;op1&gt; (unsigned)
 
-### `JB <op0> <op1> <op2>`
+### JB &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &lt; &lt;op1&gt; (unsigned)
 
-### `JBE <op0> <op1> <op2>`
+### JBE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &lt;= &lt;op1&gt; (unsigned)
 
-### `JE <op0> <op1> <op2>`
+### JE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; = &lt;op1&gt;
 
-### `JGE <op0> <op1> <op2>`
+### JGE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &gt;= &lt;op1&gt; (signed)
 
-### `JGT <op0> <op1> <op2>`
+### JGT &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &gt; &lt;op1&gt; (signed)
 
-### `JLE <op0> <op1> <op2>`
+### JLE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &lt;= &lt;op1&gt; (signed)
 
-### `JLT <op0> <op1> <op2>`
+### JLT &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; &lt; &lt;op1&gt; (signed)
 
-### `JMP <op0>`
+### JMP &lt;op0&gt;
 Jump to &lt;op0&gt;
 
-### `JNE <op0> <op1> <op2>`
+### JNE &lt;op0&gt; &lt;op1&gt; &lt;op2&gt;
 Jump to &lt;op2&gt; if &lt;op0&gt; != &lt;op1&gt;
 
-### `JNZ <op0> <op1>`
+### JNZ &lt;op0&gt; &lt;op1&gt;
 Jump to &lt;op1&gt; if &lt;op0&gt; is non-zero
 
-### `JZ <op0> <op1>`
+### JZ &lt;op0&gt; &lt;op1&gt;
 Jump to &lt;op1&gt; if &lt;op0&gt; is zero
 
-### `LEAVE`
+### LEAVE
 Leave subroutine: free stack allocated for local variables
 
-### `RET`
+### RET
 Return from subroutine
 
-### `RETPOP <op0>`
+### RETPOP &lt;op0&gt;
 Return from subroutine and pop &lt;op0&gt; bytes
 
-### `SETINT <op0> <op1>`
+### SETINT &lt;op0&gt; &lt;op1&gt;
 Set IVT[&lt;op0&gt;] to &lt;op1&gt;
 
-### `STI`
+### STI
 Enable interrupts
 
 
 ## Data transfer
 
-### `IN <op0> <op1>`
+### IN &lt;op0&gt; &lt;op1&gt;
 Transfer input data from IOPort &lt;op0&gt;B into memory at address &lt;op1&gt;W, set CX to its length and send ACK
 
-### `MOV <op0> <op1>`
+### MOV &lt;op0&gt; &lt;op1&gt;
 Move data so that &lt;op0&gt; = &lt;op1&gt;
 
-### `OUT <op0> <op1>`
+### OUT &lt;op0&gt; &lt;op1&gt;
 Transfer output data (CX bytes) from memory at address &lt;op1&gt;W to IOPort &lt;op0&gt;B
 
-### `POP <op0>`
+### POP &lt;op0&gt;
 Pop &lt;op0&gt; from stack
 
-### `POPF`
+### POPF
 Pop FLAGS from stack
 
-### `PUSH <op0>`
+### PUSH &lt;op0&gt;
 Push &lt;op0&gt; to stack
 
-### `PUSHF`
+### PUSHF
 Push FLAGS to stack
 
 
 ## Misc
 
-### `HLT`
-Halt CPU so it's inactive until a hardware interrupt occurs
+### HLT
+Halt CPU so it&#x27;s inactive until a hardware interrupt occurs
 
-### `NOP`
+### NOP
 No operation
 
-### `PRINT <op0>`
+### PRINT &lt;op0&gt;
 Print &lt;op0&gt; as word to CPU log
 
-### `PRINTCHAR <op0>`
+### PRINTCHAR &lt;op0&gt;
 Print &lt;op0&gt; as char to CPU log
 
-### `SETTMR <op0> <op1> <op2> <op3> <op4>`
+### SETTMR &lt;op0&gt; &lt;op1&gt; &lt;op2&gt; &lt;op3&gt; &lt;op4&gt;
 Set subtimer &lt;op0&gt; of Timer to mode=&lt;op1&gt;, speed=&lt;op2&gt;, phase=&lt;op3&gt;, interrupt_number=&lt;op4&gt;
 
-### `SHUTDOWN`
+### SHUTDOWN
 Shut down Aldebaran

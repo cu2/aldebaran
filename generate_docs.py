@@ -3,6 +3,8 @@
 Generate docs for instruction set
 '''
 
+import html
+
 from instructions.instruction_set import INSTRUCTION_SET, INSTRUCTION_GROUPS
 
 
@@ -23,9 +25,9 @@ def main():
             operands = ['<op{}>'.format(opidx) for opidx in range(inst.operand_count)]
             title = ' '.join([inst.__name__] + operands)
             print()
-            # print('### {:02X} {}'.format(opcode, inst.__name__))
-            print('### `{}`'.format(title))
-            print(inst.__doc__.replace('<', '&lt;').replace('>', '&gt;'))
+            print('### {}'.format(html.escape(title)))
+            print(html.escape(inst.__doc__))
+
 
 if __name__ == '__main__':
     main()
