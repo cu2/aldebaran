@@ -41,7 +41,7 @@ class Executable:
         return (
             ALDEBARAN_EXECUTABLE_SIGNATURE
             + [self.version]
-            + utils.word_to_bytes(self.entry_point)
+            + utils.word_to_binary(self.entry_point)
             + self.extra_header
         )
 
@@ -64,7 +64,7 @@ class Executable:
             except Exception:
                 raise CorruptFileError('Version not valid')
             try:
-                self.entry_point = utils.bytes_to_word(*f.read(2))
+                self.entry_point = utils.binary_to_number(list(f.read(2)))
             except Exception:
                 raise CorruptFileError('Entry point not valid')
             extra_header_length = self.entry_point - len(ALDEBARAN_EXECUTABLE_SIGNATURE) - 3

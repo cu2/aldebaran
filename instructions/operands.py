@@ -80,15 +80,15 @@ def get_operand_opcode(token):
     if token.type == TokenType.WORD_LITERAL:
         return [
             _get_opbyte(OpLen.WORD, OpType.VALUE)
-        ] + utils.word_to_bytes(token.value)
+        ] + utils.word_to_binary(token.value)
     if token.type == TokenType.BYTE_LITERAL:
         return [
             _get_opbyte(OpLen.BYTE, OpType.VALUE)
-        ] + utils.byte_to_bytes(token.value)
+        ] + utils.byte_to_binary(token.value)
     if token.type == TokenType.ADDRESS_WORD_LITERAL:
         return [
             _get_opbyte(OpLen.WORD, OpType.ADDRESS)
-        ] + utils.word_to_bytes(token.value, signed=True)  # ^-1234
+        ] + utils.word_to_binary(token.value, signed=True)  # ^-1234
     if token.type == TokenType.WORD_REGISTER:
         return [
             _get_opbyte(OpLen.WORD, OpType.REGISTER, token.value)
@@ -117,13 +117,13 @@ def get_operand_opcode(token):
         else:
             opreg = None
         if token.type == TokenType.ABS_REF_REG:
-            oprest = utils.byte_to_bytes(token.value.offset, signed=True)  # [AX-12]
+            oprest = utils.byte_to_binary(token.value.offset, signed=True)  # [AX-12]
         elif token.type == TokenType.REL_REF_WORD:
-            oprest = utils.word_to_bytes(token.value.base, signed=True)  # [-1234]
+            oprest = utils.word_to_binary(token.value.base, signed=True)  # [-1234]
         elif token.type == TokenType.REL_REF_WORD_BYTE:
-            oprest = utils.word_to_bytes(token.value.base, signed=True) + utils.byte_to_bytes(token.value.offset)  # [-1234+56]
+            oprest = utils.word_to_binary(token.value.base, signed=True) + utils.byte_to_binary(token.value.offset)  # [-1234+56]
         elif token.type == TokenType.REL_REF_WORD_REG:
-            oprest = utils.word_to_bytes(token.value.base, signed=True)  # [-1234+AX]
+            oprest = utils.word_to_binary(token.value.base, signed=True)  # [-1234+AX]
         return [
             _get_opbyte(oplen, optype, opreg)
         ] + oprest
@@ -155,21 +155,20 @@ def parse_operand_buffer(operand_buffer, operand_count):
             opoffset = None
             if optype == OpType.VALUE:
                 if oplen == OpLen.WORD:
-                    opvalue = utils.bytes_to_word(
+                    opvalue = utils.binary_to_number([
                         operand_buffer[operand_buffer_idx+0],
                         operand_buffer[operand_buffer_idx+1],
-                    )
+                    ])
                     operand_buffer_idx += 2
                 else:
                     opvalue = operand_buffer[operand_buffer_idx+0]
                     operand_buffer_idx += 1
             elif optype == OpType.ADDRESS:
                 if oplen == OpLen.WORD:
-                    opvalue = utils.bytes_to_word(
+                    opvalue = utils.binary_to_number([
                         operand_buffer[operand_buffer_idx+0],
                         operand_buffer[operand_buffer_idx+1],
-                        signed=True,
-                    )
+                    ], signed=True)
                     operand_buffer_idx += 2
                 else:
                     raise InvalidOperandError(operand_buffer, operand_buffer_idx)
@@ -185,35 +184,32 @@ def parse_operand_buffer(operand_buffer, operand_count):
                 opreg = _get_register_name_by_code(raw_opreg)
                 if opreg not in WORD_REGISTERS:
                     raise InvalidRegisterCodeError()
-                opoffset = utils.bytes_to_byte(
-                    operand_buffer[operand_buffer_idx+0],
+                opoffset = utils.binary_to_number(
+                    [operand_buffer[operand_buffer_idx+0]],
                     signed=True,
                 )
                 operand_buffer_idx += 1
             elif optype == OpType.REL_REF_WORD:
-                opbase = utils.bytes_to_word(
+                opbase = utils.binary_to_number([
                     operand_buffer[operand_buffer_idx+0],
                     operand_buffer[operand_buffer_idx+1],
-                    signed=True,
-                )
+                ], signed=True)
                 operand_buffer_idx += 2
             elif optype == OpType.REL_REF_WORD_BYTE:
-                opbase = utils.bytes_to_word(
+                opbase = utils.binary_to_number([
                     operand_buffer[operand_buffer_idx+0],
                     operand_buffer[operand_buffer_idx+1],
-                    signed=True,
-                )
+                ], signed=True)
                 opoffset = operand_buffer[operand_buffer_idx+2]
                 operand_buffer_idx += 3
             elif optype == OpType.REL_REF_WORD_REG:
                 opreg = _get_register_name_by_code(raw_opreg)
                 if opreg not in WORD_REGISTERS:
                     raise InvalidRegisterCodeError()
-                opbase = utils.bytes_to_word(
+                opbase = utils.binary_to_number([
                     operand_buffer[operand_buffer_idx+0],
                     operand_buffer[operand_buffer_idx+1],
-                    signed=True,
-                )
+                ], signed=True)
                 operand_buffer_idx += 2
             else:
                 raise InvalidOperandError(operand_buffer, operand_buffer_idx)

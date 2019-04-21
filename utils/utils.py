@@ -1,13 +1,81 @@
-class OutOfRangeError(Exception):
-    pass
+'''
+Utils, like binary_to_number, set_low, set_high...
+'''
+
+def binary_to_number(binary, signed=False):
+    '''
+    Convert binary (list of bytes) to number
+    '''
+    return int.from_bytes(binary, 'big', signed=signed)
 
 
-class WordOutOfRangeError(OutOfRangeError):
-    pass
+def word_to_binary(word, signed=False):
+    '''
+    Convert word-length number to binary (list of bytes)
+    '''
+    try:
+        return list(word.to_bytes(2, 'big', signed=signed))
+    except OverflowError:
+        raise WordOutOfRangeError(hex(word))
 
 
-class ByteOutOfRangeError(OutOfRangeError):
-    pass
+def byte_to_binary(byte, signed=False):
+    '''
+    Convert byte-length number to binary (list of bytes)
+    '''
+    try:
+        return list(byte.to_bytes(1, 'big', signed=signed))
+    except OverflowError:
+        raise ByteOutOfRangeError(hex(byte))
+
+
+def byte_to_str(byte):
+    '''
+    Convert byte-length number to hex string
+    '''
+    return '{:02X}'.format(byte)
+
+
+def word_to_str(word):
+    '''
+    Convert word-length number to hex string
+    '''
+    return '{:04X}'.format(word)
+
+
+def binary_to_str(binary, padding=' '):
+    '''
+    Convert binary (list of bytes) to hex string
+    '''
+    return padding.join('{:02X}'.format(x) for x in binary)
+
+
+def get_low(word):
+    '''
+    Return low byte of word
+    '''
+    return word & 0x00FF
+
+
+def get_high(word):
+    '''
+    Return high byte of word
+    '''
+    return word >> 8
+
+
+def set_low(word, value):
+    '''
+    Set low byte of word and return result
+    '''
+    return (word & 0xFF00) + value
+
+
+def set_high(word, value):
+    '''
+    Set high byte of word and return result
+    '''
+    return (word & 0x00FF) + (value << 8)
 
 
 class Log:
@@ -57,102 +125,13 @@ class Hardware:
             self.log = SilentLog()
 
 
-def bytes_to_word(high, low, signed=False):
-    return int.from_bytes([high, low], 'big', signed=signed)
+class OutOfRangeError(Exception):
+    pass
 
 
-def bytes_to_byte(byte, signed=False):
-    return int.from_bytes([byte], 'big', signed=signed)
+class WordOutOfRangeError(OutOfRangeError):
+    pass
 
 
-def word_to_bytes(word, signed=False):
-    if signed:
-        if word < -32768 or word > 32767:
-            raise WordOutOfRangeError(hex(word))
-        return list(word.to_bytes(2, 'big', signed=True))
-    if word < 0 or word > 65535:
-        raise WordOutOfRangeError(hex(word))
-    return [
-        word >> 8,
-        word & 0x00FF,
-    ]
-
-
-def byte_to_bytes(byte, signed=False):
-    if signed:
-        if byte < -128 or byte > 127:
-            raise ByteOutOfRangeError(hex(byte))
-        return list(byte.to_bytes(1, 'big', signed=True))
-    if byte < 0 or byte > 255:
-        raise ByteOutOfRangeError(hex(byte))
-    return [
-        byte,
-    ]
-
-
-def string_to_bytes(s):
-    opcode = []
-    for char in s:
-        for byte in char.encode('utf-8'):
-            opcode.append(byte)
-    return opcode
-
-
-def byte_to_str(byte, signed=False):
-    if signed:
-        if byte < -128 or byte > 127:
-            raise ByteOutOfRangeError(hex(byte))
-        return '{:02X}'.format(byte & 0xFF)  # TODO: fix
-    if byte < 0 or byte > 255:
-        raise ByteOutOfRangeError(hex(byte))
-    return '{:02X}'.format(byte)
-
-
-def word_to_str(word, signed=False):
-    if signed:
-        if word < -32768 or word > 32767:
-            raise WordOutOfRangeError(hex(word))
-        return '{:04X}'.format(word & 0xFFFF)  # TODO: fix
-    if word < 0 or word > 65535:
-        raise WordOutOfRangeError(hex(word))
-    return '{:04X}'.format(word)
-
-
-def binary_to_str(binary, padding=' '):
-    return padding.join('{:02X}'.format(x) for x in binary)
-
-
-def str_to_int(str):
-    return int(str, 16)
-
-
-def get_low(word):
-    return word & 0x00FF
-
-
-def get_high(word):
-    return word >> 8
-
-
-def set_low(word, value):
-    return (word & 0xFF00) + value
-
-
-def set_high(word, value):
-    return (word & 0x00FF) + (value << 8)
-
-
-def byte_to_signed(byte):
-    if byte < 0 or byte > 255:
-        raise ByteOutOfRangeError(hex(byte))
-    if byte > 127:
-        return byte - 256
-    return byte
-
-
-def word_to_signed(word):
-    if word < 0 or word > 65535:
-        raise WordOutOfRangeError(hex(word))
-    if word > 32767:
-        return word - 65536
-    return word
+class ByteOutOfRangeError(OutOfRangeError):
+    pass

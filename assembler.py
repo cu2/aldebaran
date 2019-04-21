@@ -166,13 +166,13 @@ class Assembler:
             opcode = []
             for arg in args:
                 if arg.type == TokenType.STRING_LITERAL:
-                    opcode += utils.string_to_bytes(arg.value)
+                    opcode += list(arg.value.encode('utf-8'))
                 elif arg.type == TokenType.BYTE_LITERAL:
                     opcode.append(arg.value)
                 elif arg.type == TokenType.WORD_LITERAL:
-                    opcode += utils.word_to_bytes(arg.value)
+                    opcode += utils.word_to_binary(arg.value)
                 else:
-                    self._raise_error(source_line, line_number, arg.pos, 'Unknown macro parameter: {}'.format(arg), MacroError)
+                    self._raise_error(source_line, line_number, arg.pos, 'Parameter of macro DAT must be a byte, word or string literal, not {}'.format(arg.type), MacroError)
             return opcode
         if macro_name == 'DATN':
             if len(args) != 2:
@@ -186,11 +186,11 @@ class Assembler:
             opcode = []
             for _ in range(repeat_number):
                 if value_arg.type == TokenType.STRING_LITERAL:
-                    opcode += utils.string_to_bytes(value_arg.value)
+                    opcode += list(value_arg.value.encode('utf-8'))
                 elif value_arg.type == TokenType.BYTE_LITERAL:
                     opcode.append(value_arg.value)
                 else:
-                    opcode += utils.word_to_bytes(value_arg.value)
+                    opcode += utils.word_to_binary(value_arg.value)
             return opcode
         # TODO: add more macros
         self._raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)

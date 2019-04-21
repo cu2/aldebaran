@@ -106,7 +106,7 @@ if __name__ == '__main__':
     bios = BIOS({
         'start': (config.system_addresses['entry_point'], start_program),
         'default_interrupt_handler': (config.system_addresses['default_interrupt_handler'], [instruction_mapping['IRET'][0]]),
-        'IVT': (config.system_addresses['IVT'], utils.word_to_bytes(config.system_addresses['default_interrupt_handler']) * config.number_of_interrupts),
+        'IVT': (config.system_addresses['IVT'], utils.word_to_binary(config.system_addresses['default_interrupt_handler']) * config.number_of_interrupts),
     })
     # start
     aldebaran = Aldebaran({
