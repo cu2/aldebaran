@@ -85,3 +85,11 @@ INSTRUCTION_SET = [
     (0x2D, misc.SETTMR),
     (0x2E, misc.SHUTDOWN),
 ]
+
+
+INSTRUCTION_GROUPS = [
+    ('arithmetic', 'Arithmetic'),
+    ('control_flow', 'Control flow'),
+    ('data_transfer', 'Data transfer'),
+    ('misc', 'Misc'),
+]
