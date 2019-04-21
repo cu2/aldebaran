@@ -155,7 +155,7 @@ class Assembler:
             self._raise_error(source_line, line_number, None, 'Too many operands: {} instead of {}'.format(len(operands), inst.operand_count), OperandError)
         # TODO: check inst.oplens
         # if None: no check
-        # otherwise list of B|W|BW
+        # otherwise list of strings of B|W|*
         opcode = [inst_opcode]
         for operand_opcode in operands:
             opcode += operand_opcode
