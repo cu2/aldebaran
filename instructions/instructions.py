@@ -1,7 +1,23 @@
-from .operands import parse_operand_buffer, get_operand_value, set_operand_value
+'''
+Base class for instructions
+'''
+
+from .operands import parse_operand_buffer, get_operand_value, set_operand_value, OpLen
+from utils import utils
 
 
 class Instruction:
+    '''
+    Base class for instructions
+
+    operand_count: number of operands
+    oplens:
+        list of possible combinations of operand lengths
+        examples:
+        ['BB', 'WW'] means: it has 2 operands, either both are B or both are W
+        ['*W'] means: first operand can be anything, second must be W
+        None means: all operands can be anything
+    '''
 
     operand_count = 0
     oplens = None
@@ -13,24 +29,6 @@ class Instruction:
 
     def __repr__(self):
         return self.__class__.__name__
-
-    def get_operand(self, opnum):
-        '''Return value of operand'''
-        operand = self.operands[opnum]
-        return get_operand_value(operand, self.cpu, self.cpu.ram, self.ip)
-
-    def set_operand(self, opnum, value):
-        '''Set value of operand'''
-        operand = self.operands[opnum]
-        set_operand_value(operand, value, self.cpu, self.cpu.ram, self.ip)
-
-    def get_signed_operand(self, opnum):
-        # TODO: fix
-        return self.get_operand(opnum)
-
-    def set_signed_operand(self, opnum, value):
-        # TODO: fix
-        self.set_operand(opnum, value)
 
     def run(self):
         '''Run instruction'''
@@ -45,4 +43,41 @@ class Instruction:
 
         If there's a jump, return the IP. Otherwise return None.
         '''
-        raise NotImplementedError
+        raise NotImplementedError()
+
+    def get_operand(self, opnum):
+        '''
+        Return value of operand
+        '''
+        operand = self.operands[opnum]
+        return get_operand_value(operand, self.cpu, self.cpu.ram, self.ip)
+
+    def set_operand(self, opnum, value):
+        '''
+        Set value of operand
+        '''
+        operand = self.operands[opnum]
+        set_operand_value(operand, value, self.cpu, self.cpu.ram, self.ip)
+
+    def get_signed_operand(self, opnum):
+        '''
+        Return value of operand as signed number
+        '''
+        operand = self.operands[opnum]
+        raw_value = get_operand_value(operand, self.cpu, self.cpu.ram, self.ip)
+        if operand.oplen == OpLen.BYTE:
+            binary_value = utils.byte_to_binary(raw_value)
+        else:
+            binary_value = utils.word_to_binary(raw_value)
+        return utils.binary_to_number(binary_value, signed=True)
+
+    def set_signed_operand(self, opnum, value):
+        '''
+        Set value of operand as signed number
+        '''
+        operand = self.operands[opnum]
+        if operand.oplen == OpLen.BYTE:
+            binary_value = utils.byte_to_binary(value, signed=True)
+        else:
+            binary_value = utils.word_to_binary(value, signed=True)
+        set_operand_value(operand, utils.binary_to_number(binary_value), self.cpu, self.cpu.ram, self.ip)
