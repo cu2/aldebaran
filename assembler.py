@@ -106,7 +106,7 @@ class Assembler:
                     self.labels[label_name] = 0
 
     def _substitute_label(self, arg, source_line, line_number, opcode_pos):
-        assert(arg.type in LABEL_REFERENCE_TYPES)
+        assert arg.type in LABEL_REFERENCE_TYPES
         if arg.type == TokenType.ADDRESS_LABEL or arg.type == TokenType.IDENTIFIER:
             label_name = arg.value
         else:
@@ -138,11 +138,10 @@ class Assembler:
         for arg in args:
             if arg.type == TokenType.STRING_LITERAL:
                 self._raise_error(source_line, line_number, arg.pos, 'String literal cannot be instruction operand: {}'.format(arg.value), OperandError)
-            is_label_ref = arg.type in LABEL_REFERENCE_TYPES
-            if is_label_ref:
+            if arg.type in LABEL_REFERENCE_TYPES:
                 arg = self._substitute_label(arg, source_line, line_number, opcode_pos)
             try:
-                operands.append(get_operand_opcode(arg, is_label_ref))
+                operands.append(get_operand_opcode(arg))
             except Exception:
                 self._raise_error(source_line, line_number, arg.pos, 'Could not parse operand: {}'.format(arg), OperandError)
         return operands
