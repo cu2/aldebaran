@@ -3,13 +3,13 @@
 
 
 MAIN:
-        MOV AX 1357  # for testing
+        MOV AX 0x1357  # for testing
 
-        # retval = SUB(param1, param2)
-        DEC SP 02  # 2 bytes for retval
+        # retval = SUBROUTINE(param1, param2)
+        DEC SP 0x02  # 2 bytes for retval
         PUSH [PARAM1]
         PUSH [PARAM2]
-        CALL SUB
+        CALL SUBROUTINE
         POP [RETVAL]
 
         PRINT [RETVAL]  # is it BCDE?
@@ -18,30 +18,30 @@ MAIN:
         SHUTDOWN
 
 
-SUB:
+SUBROUTINE:
         # sub prologue:
-        ENTER 06  # 6 bytes for local vars
+        ENTER 0x06  # 6 bytes for local vars
         PUSH AX
 
         # sub main:
-        MOV AX 0000
-        PRINT [BP+05]  # param2
-        PRINT [BP+07]  # param1
-        PRINT [BP+09]  # retval
-        MOV [BP-01] 2345  # var1 = 2345
-        MOV [BP-03] 6789  # var2 = 6789
-        MOV [BP-05] BCDE  # var3 = BCDE
-        PRINT [BP-01]  # var1
-        PRINT [BP-03]  # var2
-        PRINT [BP-05]  # var3
-        MOV [BP+09] [BP-05]  # retval = var3
+        MOV AX 0x0000
+        PRINT [BP+0x05]  # param2
+        PRINT [BP+0x07]  # param1
+        PRINT [BP+0x09]  # retval
+        MOV [BP-0x01] 0x2345  # var1 = 2345
+        MOV [BP-0x03] 0x6789  # var2 = 6789
+        MOV [BP-0x05] 0xBCDE  # var3 = BCDE
+        PRINT [BP-0x01]  # var1
+        PRINT [BP-0x03]  # var2
+        PRINT [BP-0x05]  # var3
+        MOV [BP+0x09] [BP-0x05]  # retval = var3
 
         # sub epilogue:
         POP AX
         LEAVE
-        RETPOP 04  # 4 bytes for params
+        RETPOP 0x04  # 4 bytes for params
 
 
-PARAM1: DAT ABCD
-PARAM2: DAT 1234
-RETVAL: DAT 0000
+PARAM1: .DAT 0xABCD
+PARAM2: .DAT 0x1234
+RETVAL: .DAT 0x0000
