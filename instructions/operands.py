@@ -218,7 +218,7 @@ def parse_operand_buffer(operand_buffer, operand_count):
 
 def get_operand_value(operand, cpu, ram, ip):
     '''
-    Get operand value when executing an instruction
+    Get operand value (as unsigned) when executing an instruction
     '''
     if operand.optype == OpType.EXTENDED:
         raise InvalidOperandError('Extended optype not supported yet.')
@@ -238,7 +238,7 @@ def get_operand_value(operand, cpu, ram, ip):
 
 def set_operand_value(operand, value, cpu, ram, ip):
     '''
-    Set operand value when executing an instruction
+    Set operand value (as unsigned) when executing an instruction
     '''
     if operand.optype == OpType.EXTENDED:
         raise InvalidOperandError('Extended optype not supported yet.')
