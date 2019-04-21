@@ -1,5 +1,5 @@
 from instructions.instructions import Instruction
-from instructions.operands import OPLEN_WORD
+from instructions.operands import OpLen
 from utils import utils
 
 
@@ -22,7 +22,7 @@ class PUSH(Instruction):
     operand_count = 1
 
     def do(self):
-        if self.operands[0].oplen == OPLEN_WORD:
+        if self.operands[0].oplen == OpLen.WORD:
             self.cpu.stack_push_word(self.get_operand(0))
         else:
             self.cpu.stack_push_byte(self.get_operand(0))
@@ -34,7 +34,7 @@ class POP(Instruction):
     operand_count = 1
 
     def do(self):
-        if self.operands[0].oplen == OPLEN_WORD:
+        if self.operands[0].oplen == OpLen.WORD:
             self.set_operand(0, self.cpu.stack_pop_word())
         else:
             self.set_operand(0, self.cpu.stack_pop_byte())
