@@ -57,8 +57,12 @@ class Hardware:
             self.log = SilentLog()
 
 
-def bytes_to_word(high, low):
-    return (high << 8) + low
+def bytes_to_word(high, low, signed=False):
+    return int.from_bytes([high, low], 'big', signed=signed)
+
+
+def bytes_to_byte(byte, signed=False):
+    return int.from_bytes([byte], 'big', signed=signed)
 
 
 def word_to_bytes(word, signed=False):
