@@ -119,6 +119,8 @@ If `speed` is zero, a `ONESHOT` subtimer calls the interrupt at the next beat of
 
 ### Instruction set
 
+[See here](./docs/instruction_set.md)
+
 ### Assembly language
 
 
