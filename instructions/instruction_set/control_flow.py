@@ -1,3 +1,7 @@
+'''
+Control flow instructions
+'''
+
 from instructions.instructions import Instruction
 
 
@@ -7,6 +11,7 @@ class JMP(Instruction):
     '''Jump to <op0>'''
 
     operand_count = 1
+    oplens = ['W']
 
     def do(self):
         return self.get_operand(0)
@@ -16,6 +21,7 @@ class JZ(Instruction):
     '''Jump to <op1> if <op0> is zero'''
 
     operand_count = 2
+    oplens = ['*W']
 
     def do(self):
         if self.get_operand(0) == 0:
@@ -26,6 +32,7 @@ class JNZ(Instruction):
     '''Jump to <op1> if <op0> is non-zero'''
 
     operand_count = 2
+    oplens = ['*W']
 
     def do(self):
         if self.get_operand(0) != 0:
@@ -36,6 +43,7 @@ class JE(Instruction):
     '''Jump to <op2> if <op0> = <op1>'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) == self.get_operand(1):
@@ -46,6 +54,7 @@ class JNE(Instruction):
     '''Jump to <op2> if <op0> != <op1>'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) != self.get_operand(1):
@@ -56,6 +65,7 @@ class JGT(Instruction):
     '''Jump to <op2> if <op0> > <op1> (signed)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_signed_operand(0) > self.get_signed_operand(1):
@@ -66,6 +76,7 @@ class JGE(Instruction):
     '''Jump to <op2> if <op0> >= <op1> (signed)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_signed_operand(0) >= self.get_signed_operand(1):
@@ -76,6 +87,7 @@ class JLT(Instruction):
     '''Jump to <op2> if <op0> < <op1> (signed)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_signed_operand(0) < self.get_signed_operand(1):
@@ -86,6 +98,7 @@ class JLE(Instruction):
     '''Jump to <op2> if <op0> <= <op1> (signed)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_signed_operand(0) <= self.get_signed_operand(1):
@@ -96,6 +109,7 @@ class JA(Instruction):
     '''Jump to <op2> if <op0> > <op1> (unsigned)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) > self.get_operand(1):
@@ -106,6 +120,7 @@ class JAE(Instruction):
     '''Jump to <op2> if <op0> >= <op1> (unsigned)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) >= self.get_operand(1):
@@ -116,6 +131,7 @@ class JB(Instruction):
     '''Jump to <op2> if <op0> < <op1> (unsigned)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) < self.get_operand(1):
@@ -126,6 +142,7 @@ class JBE(Instruction):
     '''Jump to <op2> if <op0> <= <op1> (unsigned)'''
 
     operand_count = 3
+    oplens = ['BBW', 'WWW']
 
     def do(self):
         if self.get_operand(0) <= self.get_operand(1):
@@ -138,6 +155,7 @@ class CALL(Instruction):
     '''Call subroutine at address <op0>'''
 
     operand_count = 1
+    oplens = ['W']
 
     def do(self):
         self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
@@ -146,6 +164,7 @@ class CALL(Instruction):
 
 class ENTER(Instruction):
     '''Enter subroutine: set frame pointer and allocate <op0> bytes on stack for local variables'''
+    # TODO: upgrade
 
     operand_count = 1
 
@@ -157,6 +176,7 @@ class ENTER(Instruction):
 
 class LEAVE(Instruction):
     '''Leave subroutine: free stack allocated for local variables'''
+    # TODO: upgrade
 
     def do(self):
         self.cpu.set_register('SP', self.cpu.get_register('BP'))
@@ -172,6 +192,7 @@ class RET(Instruction):
 
 class RETPOP(Instruction):
     '''Return from subroutine and pop <op0> bytes'''
+    # TODO: upgrade
 
     operand_count = 1
 
@@ -187,6 +208,7 @@ class INT(Instruction):
     '''Call interrupt <op0>'''
 
     operand_count = 1
+    oplens = ['B']
 
     def do(self):
         self.cpu.stack_push_flags()
@@ -208,6 +230,7 @@ class SETINT(Instruction):
     '''Set IVT[<op0>] to <op1>'''
 
     operand_count = 2
+    oplens = ['BW']
 
     def do(self):
         interrupt_number = self.get_operand(0)

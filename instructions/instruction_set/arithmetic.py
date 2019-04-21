@@ -1,3 +1,7 @@
+'''
+Arithmetic instructions
+'''
+
 from instructions.instructions import Instruction
 
 

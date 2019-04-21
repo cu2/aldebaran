@@ -1,3 +1,7 @@
+'''
+Data transfer instructions
+'''
+
 from instructions.instructions import Instruction
 from instructions.operands import OpLen
 from utils import utils
@@ -9,6 +13,7 @@ class MOV(Instruction):
     '''Move data so that <op0> = <op1>'''
 
     operand_count = 2
+    oplens = ['BB', 'WW']
 
     def do(self):
         self.set_operand(0, self.get_operand(1))
@@ -60,7 +65,7 @@ class IN(Instruction):
     '''Transfer input data from IOPort <op0>B into memory at address <op1>W, set CX to its length and send ACK'''
 
     operand_count = 2
-    oplens = ['B', 'W']
+    oplens = ['BW']
 
     def do(self):
         ioport_number = self.get_operand(0)
@@ -76,7 +81,7 @@ class OUT(Instruction):
     '''Transfer output data (CX bytes) from memory at address <op1>W to IOPort <op0>B'''
 
     operand_count = 2
-    oplens = ['B', 'W']
+    oplens = ['BW']
 
     def do(self):
         ioport_number = self.get_operand(0)
