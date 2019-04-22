@@ -26,6 +26,7 @@ Run executable:
 ## How does it work?
 
 - [Overview](docs/overview.md)
+- [How does it work?](docs/how-does-it-work.md)
 - [System config](docs/system-config.md)
 - [Opcode structure](docs/opcode-structure.md)
 - [Instruction set](docs/instruction-set.md)
