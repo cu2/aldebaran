@@ -36,8 +36,8 @@ Based on the instruction the CPU knows, how many operands it has. E.g. MOV has 2
 Every operand starts with an opbyte:
 
 - bit 7 (oplen): length of the operand's value
-    0 = byte
-    1 = word
+    - 0 = byte
+    - 1 = word
 - bits 4-6 (optype): operand type
     - 0 = value
     - 1 = address
