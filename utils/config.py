@@ -34,6 +34,7 @@ system_addresses = {
 }
 clock_freq = 10000  # Hz
 timer_freq = 10  # Hz
+number_of_timers = 16
 
 
 # Logging

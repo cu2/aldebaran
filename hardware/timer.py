@@ -2,7 +2,7 @@ import datetime
 import threading
 import time
 
-from utils import utils
+from utils import config, utils
 
 
 TIMER_MODE_OFF = 0
@@ -26,7 +26,7 @@ class Timer(utils.Hardware):
             'speed': 1,
             'phase': 0,
             'interrupt_number': 0,
-        } for _ in range(8)]
+        } for _ in range(config.number_of_timers)]
         self.interrupt_controller = None
 
     def register_architecture(self, interrupt_controller):
