@@ -3,7 +3,7 @@
 
 ## Architecture
 
-![Architecture](docs/aldebaran_architecture.png)
+![Architecture](aldebaran-architecture.png)
 
 
 ## Components
