@@ -1,0 +1,3 @@
+# Opcode structure
+
+TO BE ADDED...
