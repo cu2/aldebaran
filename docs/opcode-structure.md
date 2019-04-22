@@ -3,7 +3,7 @@
 The opcode of an instruction with its operands has the following structure:
 
 - one byte encoding the instruction
-- for each operand: one or more bytes
+- one or more bytes encoding each operand
 
 For example this line of assembly code:
 ```
@@ -12,7 +12,7 @@ ADD AX 0x0001 0x0002
 
 can be assembled into this opcode:
 ```
-00 A0 80 00 01 80 00
+00 A0 80 00 01 80 00 02
 ```
 
 where:
