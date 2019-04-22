@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 Generate docs for instruction set
 '''
@@ -9,6 +8,9 @@ from instructions.instruction_set import INSTRUCTION_SET, INSTRUCTION_GROUPS
 
 
 def main():
+    '''
+    Entry point of script
+    '''
     groups = {}
     for opcode, inst in INSTRUCTION_SET:
         module_name = inst.__module__

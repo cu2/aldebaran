@@ -3,13 +3,12 @@ set -eu
 set -o pipefail
 
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
-cd "${ROOT_DIR}"
 
-if [ ! -d "virtualenv" ]; then
+if [ ! -d "${ROOT_DIR}/virtualenv" ]; then
   echo 'Please install first by running ./scripts/setup.sh'
   exit 1
 fi
 
-. "virtualenv/bin/activate"
+. "${ROOT_DIR}/virtualenv/bin/activate"
 
-exec python -m unittest "$@"
+exec python "${ROOT_DIR}/run_device.py" "$@"

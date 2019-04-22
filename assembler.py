@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 '''
 Assemble one or more source code files to executable files
 
