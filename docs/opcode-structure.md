@@ -1,6 +1,6 @@
 # Opcode structure
 
-An instruction with its operands has the following structure:
+The opcode of an instruction with its operands has the following structure:
 
 - one byte encoding the instruction
 - for each operand: one or more bytes
