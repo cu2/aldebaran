@@ -20,7 +20,7 @@
 
 ## Source and binary
 
-Programs can be written either directly in machine code or assembly. For the latter, there's an external assembler. "External" means it doesn't run *on* Aldebaran, but on the host machine (where Aldebaran itself is running).
+Programs can be written either directly in machine code or [assembly](assembly.md). For the latter, there's an external assembler. "External" means it doesn't run *on* Aldebaran, but on the host machine (where Aldebaran itself is running).
 
 Typical source code looks like this:
 ```
@@ -29,7 +29,7 @@ print ax
 shutdown
 ```
 
-The assembler convert it into binary machine code and creates an executable file that Aldebaran can load and run.
+The assembler converts it into binary machine code and creates an executable file that Aldebaran can load and run.
 
 The executable has a header:
 
