@@ -1,7 +1,7 @@
 '''
 Assemble one or more source code files to executable files
 
-Usage: ./assembler.py <file>+
+Usage: python assembler.py <file>+
 '''
 
 import argparse
