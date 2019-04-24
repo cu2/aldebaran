@@ -24,10 +24,10 @@ def main():
         print()
         print('## {}'.format(group_full_name))
         for opcode, inst in groups[group_name]:
-            operands = ['<op{}>'.format(opidx) for opidx in range(inst.operand_count)]
+            operands = ['`<op{}>`'.format(opidx) for opidx in range(inst.operand_count)]
             title = ' '.join([inst.__name__] + operands)
             print()
-            print('### {}'.format(html.escape(title)))
+            print('### {}'.format(title))
             print(html.escape(inst.__doc__))
 
 
