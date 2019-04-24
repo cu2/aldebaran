@@ -131,7 +131,11 @@ Used for structs.
 
 ### Relative reference word + register
 
-A word literal or a label name + a word register name in brackets followed by an optional `B`. E.g. `[0x1234+AX]` or `[label+AX]`. We take the value of the word literal or the relative address (offset) of the label, add the value of the word register, treat the result as a relative address and take the word or byte value of that memory position. E.g. if `label`'s offset is `+15` (because the label definition is 15 bytes after this instruction), `mov ch [label+ax]b` will set `CH`'s value to the byte at the label definition + `AX` bytes. E.g. in the case of `label: .dat 'Hello world'` it will set it to `0x48` (ASCII for `H`) if `AX` is 0, `0x65` (`e`) if `AX` is 1...
+A word literal or a label name + a word register name in brackets followed by an optional `B`. E.g. `[0x1234+AX]` or `[label+AX]`.
+
+We take the value of the word literal or the relative address (offset) of the label, add the value of the word register, treat the result as a relative address and take the word or byte value of that memory position.
+
+E.g. if `label`'s offset is `+15` (because the label definition is 15 bytes after this instruction), `mov ch [label+ax]b` will set `CH`'s value to the byte at the label definition + `AX` bytes. E.g. in the case of `label: .dat 'Hello world'` it will set it to `0x48` (ASCII for `H`) if `AX` is 0, `0x65` (`e`) if `AX` is 1...
 
 Used for arrays.
 
