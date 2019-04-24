@@ -1,3 +1,8 @@
+'''
+System config
+'''
+
+from . import boot
 from . import utils
 
 
@@ -18,6 +23,10 @@ ram_size = 0x10000
 number_of_interrupts = 256
 IVT_size = number_of_interrupts * 2
 device_registry_size = number_of_ioports * 4
+number_of_timers = 16
+clock_freq = 10000  # Hz
+timer_freq = 10  # Hz
+
 system_interrupts = {
     'device_registered': 0x1E,
     'device_unregistered': 0x1F,
@@ -32,9 +41,29 @@ system_addresses = {
     'device_registry_address': ram_size - IVT_size - device_registry_size,
     'IVT': ram_size - IVT_size,
 }
-clock_freq = 10000  # Hz
-timer_freq = 10  # Hz
-number_of_timers = 16
+
+def create_boot_image():
+    '''
+    Create boot image
+    '''
+    boot_image = boot.BootImage(ram_size)
+    # default interrupt handler
+    from instructions.instruction_set import INSTRUCTION_SET
+    instruction_mapping = {
+        inst.__name__: (opcode, inst)
+        for opcode, inst in INSTRUCTION_SET
+    }
+    boot_image.write_byte(
+        system_addresses['default_interrupt_handler'],
+        instruction_mapping['IRET'][0],
+    )
+    # IVT
+    for int_num in range(number_of_interrupts):
+        boot_image.write_word(
+            system_addresses['IVT'] + int_num * 2,
+            system_addresses['default_interrupt_handler'],
+        )
+    return boot_image
 
 
 # Logging
