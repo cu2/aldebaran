@@ -66,8 +66,8 @@ class CPU(utils.Hardware):
         inst_opcode = self.ram.read_byte(self.registers['IP'])
         try:
             inst_class = self.instruction_opcode_mapping[inst_opcode]
-        except IndexError:
-            raise errors.UnknownOpcodeError(inst_opcode)
+        except KeyError:
+            raise errors.UnknownOpcodeError(utils.byte_to_str(inst_opcode))
         operand_buffer = [self.ram.read_byte(self.registers['IP'] + i) for i in range(1, self.operand_buffer_size + 1)]
         current_instruction = inst_class(self, operand_buffer)
         self.log.log('cpu', '%s %s' % (inst_class.__name__, current_instruction.operands))
