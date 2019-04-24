@@ -14,7 +14,7 @@ class Clock(utils.Hardware):
             self.speed = 0
         self.start_time = None
         self.cpu = None
-        self.step_count = 0
+        self.cycle_count = 0
 
     def register_architecture(self, cpu):
         self.cpu = cpu
@@ -30,7 +30,7 @@ class Clock(utils.Hardware):
             while not shutdown:
                 self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
                 shutdown = self.cpu.step()
-                self.step_count += 1
+                self.cycle_count += 1
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
             self.log.log('clock', 'Stopped.')

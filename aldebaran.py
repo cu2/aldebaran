@@ -108,10 +108,10 @@ class Aldebaran(utils.Hardware):
             stop_time = time.time()
             self.timer.stop()
             self.device_controller.stop()
-            self.log.log('aldebaran', 'Stopped after %s steps in %s sec (%s Hz).' % (
-                self.clock.step_count,
+            self.log.log('aldebaran', 'Stopped after %s cycles in %s sec (%s Hz).' % (
+                self.clock.cycle_count,
                 round(stop_time - start_time, 2),
-                round(self.clock.step_count / (stop_time - start_time)),
+                round(self.clock.cycle_count / (stop_time - start_time)),
             ))
 
 
