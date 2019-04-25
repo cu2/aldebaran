@@ -2,6 +2,9 @@
 Utils, like binary_to_number, set_low, set_high...
 '''
 
+import logging
+
+
 def binary_to_number(binary, signed=False):
     '''
     Convert binary (list of bytes) to number
@@ -76,6 +79,20 @@ def set_high(word, value):
     Set high byte of word and return result
     '''
     return (word & 0x00FF) + (value << 8)
+
+
+def config_loggers(logconfig):
+    '''
+    Setup loggers
+    '''
+    for logname, details in logconfig.items():
+        logger = logging.getLogger(logname)
+        logger.propagate = False
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter('[{}] %(message)s'.format(details['name'])))
+        logger.addHandler(handler)
+        logger.setLevel(details['level'])
 
 
 class Log:

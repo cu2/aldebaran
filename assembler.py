@@ -6,6 +6,7 @@ Usage: python assembler.py <file>+
 
 import argparse
 from enum import Enum
+import logging
 import os
 
 from instructions.instruction_set import INSTRUCTION_SET
@@ -13,6 +14,9 @@ from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS, get_operand_op
 from utils.executable import Executable
 from utils.tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
 from utils import utils
+
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -32,13 +36,13 @@ def main():
         help='Verbosity'
     )
     args = parser.parse_args()
+    _set_logging(args.verbose)
     assembler = Assembler(
         instruction_set=INSTRUCTION_SET,
         registers={
             'byte': BYTE_REGISTERS,
             'word': WORD_REGISTERS,
         },
-        verbosity=args.verbose,
     )
     for source_file in args.file:
         assembler.assemble_file(source_file)
@@ -49,7 +53,7 @@ class Assembler:
     Assembler
     '''
 
-    def __init__(self, instruction_set, registers, verbosity):
+    def __init__(self, instruction_set, registers):
         self.instruction_names = [
             inst.__name__
             for opcode, inst in instruction_set
@@ -61,21 +65,20 @@ class Assembler:
         self.macro_names = ['DAT', 'DATN']
         self.word_registers = registers['word']
         self.byte_registers = registers['byte']
-        self.verbosity = verbosity
+        self.keywords = set(self.instruction_names + self.macro_names + self.word_registers + self.byte_registers)
         self.tokenizer = Tokenizer({
             'instruction_names': self.instruction_names,
             'macro_names': self.macro_names,
             'word_registers': self.word_registers,
             'byte_registers': self.byte_registers,
         })
-        self.keywords = set(self.instruction_names + self.macro_names + self.word_registers + self.byte_registers)
         self._reset_state()
 
     def assemble_file(self, filename):
         '''
         Assemble source code file and write to executable file
         '''
-        print('Assembling {}...'.format(filename))
+        logger.info('Assembling %s...', filename)
         source_code = ''
         with open(filename, 'rt') as input_file:
             source_code = input_file.read()
@@ -83,7 +86,7 @@ class Assembler:
         binary_filename = os.path.splitext(filename)[0]
         exe = Executable(1, opcode)
         exe.save_to_file(binary_filename)
-        print('Assembled {} ({} bytes).'.format(binary_filename, exe.length))
+        logger.info('Assembled %s (%d bytes).', binary_filename, exe.length)
 
     def assemble_code(self, source_code):
         '''
@@ -91,30 +94,40 @@ class Assembler:
         '''
         self._reset_state()
         self.source_code = source_code
+        logger.debug('Tokenizing...')
         tokenized_code = self._tokenize()
+        logger.debug('Tokenized.')
+        logger.debug('Collecting labels...')
         self._collect_labels(tokenized_code)
+        logger.debug('Collected.')
+        logger.debug('Generating opcode...')
         self._generate_opcode(tokenized_code)  # generate opcode first time: label addresses not yet good
         self._generate_opcode(tokenized_code)  # generate opcode second time: label addresses good
-        if self.verbosity:
-            print('===CODE===')
-            max_line_opcode_length = max(
-                len(line_opcode)
-                for line_number, opcode_pos, line_opcode, source_line, tokens in self.augmented_opcode
-            )
-            if max_line_opcode_length > MAX_LINE_OPCODE_LENGTH:
-                max_line_opcode_length = MAX_LINE_OPCODE_LENGTH
-            for line_number, opcode_pos, line_opcode, source_line, tokens in self.augmented_opcode:
-                line_label_names = [token.value for token in tokens if token.type == TokenType.LABEL]
-                if not line_label_names and not line_opcode:
-                    continue
-                print(
+        logger.debug('Generated.')
+        self._log_code()
+        return self.opcode
+
+    def _log_code(self):
+        logger.debug('===CODE===')
+        max_line_opcode_length = max(
+            len(line_opcode)
+            for line_number, opcode_pos, line_opcode, source_line, tokens in self.augmented_opcode
+        )
+        if max_line_opcode_length > MAX_LINE_OPCODE_LENGTH:
+            max_line_opcode_length = MAX_LINE_OPCODE_LENGTH
+        for line_number, opcode_pos, line_opcode, source_line, tokens in self.augmented_opcode:
+            line_label_names = [token.value for token in tokens if token.type == TokenType.LABEL]
+            if not line_label_names and not line_opcode:
+                continue
+            logger.debug(
+                ' '.join([
                     '{:4}'.format(line_number),
                     utils.word_to_str(opcode_pos),
                     ' '.join([utils.byte_to_str(op) for op in line_opcode]),
                     '   ' * (max_line_opcode_length - len(line_opcode)),
                     source_line,
-                )
-        return self.opcode
+                ])
+            )
 
     def _reset_state(self):
         self.source_code = ''
@@ -317,6 +330,28 @@ ParserState = Enum('ParserState', [  # pylint: disable=invalid-name
 
 
 MAX_LINE_OPCODE_LENGTH = 15
+
+
+def _set_logging(verbosity):
+    if verbosity == 0:
+        level_asm = logging.INFO
+        level_token = logging.ERROR
+    elif verbosity == 1:
+        level_asm = logging.DEBUG
+        level_token = logging.ERROR
+    else:
+        level_asm = logging.DEBUG
+        level_token = logging.DEBUG
+    utils.config_loggers({
+        '__main__': {
+            'name': 'Assembler',
+            'level': level_asm,
+        },
+        'utils.tokenizer': {
+            'name': 'Tokenizer',
+            'level': level_token,
+        },
+    })
 
 
 # pylint: disable=missing-docstring

@@ -59,6 +59,10 @@ import ast
 import re
 from collections import namedtuple
 from enum import Enum
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 Token = namedtuple('Token', [
@@ -143,13 +147,16 @@ class Tokenizer:
         '''
         Tokenize a single line of assembly code
         '''
+        logger.info('Code: %s', code)
         tokens = []
         for match in self.tokenizer_regex.finditer(code.upper()):
             case_name = match.lastgroup
+            logger.debug('Match: %s @ %d', case_name, match.start())
             case_handler = CaseHandler(code, match, self.keywords, self._raise_error)
             token = case_handler.handle_case(case_name)
             if token is None:
                 continue
+            logger.debug('Token: %s', token)
             tokens.append(token)
         return tokens
 
