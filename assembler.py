@@ -350,6 +350,7 @@ def _set_logging(verbosity):
         'utils.tokenizer': {
             'name': 'Tokenizer',
             'level': level_token,
+            'color': '1;30',
         },
     })
 

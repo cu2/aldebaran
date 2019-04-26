@@ -90,7 +90,16 @@ def config_loggers(logconfig):
         logger.propagate = False
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
-        handler.setFormatter(logging.Formatter('[{}] %(message)s'.format(details['name'])))
+        if 'color' in details:
+            format_string = '\033[{}m[{}] %(message)s\033[0m'.format(
+                details['color'],
+                details['name'],
+            )
+        else:
+            format_string = '[{}] %(message)s'.format(
+                details['name'],
+            )
+        handler.setFormatter(logging.Formatter(format_string))
         logger.addHandler(handler)
         logger.setLevel(details['level'])
 
