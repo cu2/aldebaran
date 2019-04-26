@@ -3,7 +3,6 @@ System config
 '''
 
 from . import boot
-from . import utils
 
 
 # Network config
@@ -64,41 +63,3 @@ def create_boot_image():
             system_addresses['default_interrupt_handler'],
         )
     return boot_image
-
-
-# Logging
-
-minimal_loggers = {
-    'aldebaran': utils.Log(),
-    'clock': None,
-    'cpu': None,
-    'user': utils.Log(),
-    'ram': None,
-    'interrupt_controller': None,
-    'device_controller': None,
-    'timer': None,
-}
-normal_loggers = {
-    'aldebaran': utils.Log(),
-    'clock': None,
-    'cpu': utils.Log(),
-    'user': utils.Log(),
-    'ram': None,
-    'interrupt_controller': utils.Log(),
-    'device_controller': utils.Log(),
-    'timer': None,
-}
-full_loggers = {
-    'aldebaran': utils.Log(),
-    'clock': utils.Log(),
-    'cpu': utils.Log(),
-    'user': utils.Log(),
-    'ram': utils.Log(),
-    'interrupt_controller': utils.Log(),
-    'device_controller': utils.Log(),
-    'timer': utils.Log(),
-}
-
-# choose verbosity:
-loggers = minimal_loggers
-# loggers = normal_loggers

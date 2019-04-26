@@ -16,7 +16,7 @@ class HLT(Instruction):
 
     def do(self):
         self.cpu.halt = True
-        self.cpu.log.log('cpu', 'Halted')
+        self.cpu.cpu_log('Halted')
 
 
 class SHUTDOWN(Instruction):
@@ -24,7 +24,7 @@ class SHUTDOWN(Instruction):
 
     def do(self):
         self.cpu.shutdown = True
-        self.cpu.log.log('cpu', 'Shut down')
+        self.cpu.cpu_log('Shut down')
 
 
 class PRINT(Instruction):
@@ -34,7 +34,7 @@ class PRINT(Instruction):
     oplens = ['W']
 
     def do(self):
-        self.cpu.user_log.log('print', utils.word_to_str(self.get_operand(0)))
+        self.cpu.user_log(utils.word_to_str(self.get_operand(0)))
 
 
 class PRINTCHAR(Instruction):
@@ -44,7 +44,7 @@ class PRINTCHAR(Instruction):
     oplens = ['B']
 
     def do(self):
-        self.cpu.user_log.log('print', chr(self.get_operand(0)))
+        self.cpu.user_log(chr(self.get_operand(0)))
 
 
 class SETTMR(Instruction):
@@ -61,4 +61,4 @@ class SETTMR(Instruction):
             'phase': self.get_operand(3),
             'interrupt_number': self.get_operand(4),
         })
-        self.cpu.log.log('cpu', 'Subtimer %s set.' % utils.byte_to_str(subtimer_number))
+        self.cpu.cpu_log('Subtimer %s set.', utils.byte_to_str(subtimer_number))

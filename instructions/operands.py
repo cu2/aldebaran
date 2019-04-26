@@ -216,6 +216,58 @@ def parse_operand_buffer(operand_buffer, operand_count):
     return operands, 1 + operand_buffer_idx
 
 
+def operand_to_str(operand):
+    '''
+    Get the string representation of an operand
+    '''
+    if operand.optype == OpType.EXTENDED:
+        raise InvalidOperandError('Extended optype not supported yet.')
+    if operand.optype == OpType.VALUE:
+        if operand.oplen == OpLen.BYTE:
+            return utils.byte_to_str(operand.opvalue)
+        else:
+            return utils.word_to_str(operand.opvalue)
+    if operand.optype == OpType.ADDRESS:
+        if operand.opvalue < 0:
+            return '^-{}'.format(utils.word_to_str(-operand.opvalue))
+        return '^{}'.format(utils.word_to_str(operand.opvalue))
+    if operand.optype == OpType.REGISTER:
+        return operand.opreg
+
+    if operand.oplen == OpLen.BYTE:
+        oplen_str = 'B'
+    else:
+        oplen_str = ''
+    if operand.optype == OpType.ABS_REF_REG:
+        if operand.opoffset == 0:
+            opoffset_str = ''
+        elif operand.opoffset > 0:
+            opoffset_str = '+{}'.format(utils.byte_to_str(operand.opoffset))
+        else:
+            opoffset_str = '-{}'.format(utils.byte_to_str(-operand.opoffset))
+        return '[{}{}]{}'.format(
+            operand.opreg,
+            opoffset_str,
+            oplen_str,
+        )
+
+    if operand.opbase < 0:
+        opbase_str = '-{}'.format(utils.word_to_str(-operand.opbase))
+    else:
+        opbase_str = '{}'.format(utils.word_to_str(operand.opbase))
+    if operand.optype == OpType.REL_REF_WORD_BYTE:
+        opoffset_str = '+{}'.format(utils.byte_to_str(operand.opoffset))
+    elif operand.optype == OpType.REL_REF_WORD_REG:
+        opoffset_str = '+{}'.format(operand.opreg)
+    else:
+        opoffset_str = ''
+    return '[{}{}]{}'.format(
+        opbase_str,
+        opoffset_str,
+        oplen_str,
+    )
+
+
 def get_operand_value(operand, cpu, ram, ip):
     '''
     Get operand value (as unsigned) when executing an instruction

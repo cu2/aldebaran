@@ -6,6 +6,7 @@ Usage: python aldebaran.py <file>
 
 import argparse
 import time
+import logging
 
 from instructions.instruction_set import INSTRUCTION_SET
 from hardware import device_controller
@@ -20,6 +21,9 @@ from utils import utils
 from utils import executable
 
 
+logger = logging.getLogger(__name__)
+
+
 def main():
     '''
     Entry point of script
@@ -29,38 +33,41 @@ def main():
         'file',
         help='Aldebaran executable file'
     )
-    # TODO: add verbosity
+    parser.add_argument(
+        '-v', '--verbose',
+        action='count',
+        default=0,
+        help='Verbosity'
+    )
     args = parser.parse_args()
+    _set_logging(args.verbose)
     boot_file = args.file
-    loggers = config.loggers
     ioports = [
-        device_controller.IOPort(ioport_number, loggers['device_controller'])
+        device_controller.IOPort(ioport_number)
         for ioport_number in range(config.number_of_ioports)
     ]
     aldebaran = Aldebaran({
-        'clock': Clock(config.clock_freq, loggers['clock']),
-        'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET, loggers['user'], loggers['cpu']),
-        'ram': RAM(config.ram_size, loggers['ram']),
-        'interrupt_controller': interrupt_controller.InterruptController(loggers['interrupt_controller']),
+        'clock': Clock(config.clock_freq),
+        'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET),
+        'ram': RAM(config.ram_size),
+        'interrupt_controller': interrupt_controller.InterruptController(),
         'device_controller': device_controller.DeviceController(
             config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
             config.system_addresses, config.system_interrupts,
             ioports,
-            loggers['device_controller'],
         ),
-        'timer': timer.Timer(config.timer_freq, loggers['timer']),
-    }, loggers['aldebaran'])
+        'timer': timer.Timer(config.timer_freq),
+    })
     aldebaran.boot(boot_file)
     aldebaran.run()
 
 
-class Aldebaran(utils.Hardware):
+class Aldebaran:
     '''
     Aldebaran
     '''
 
-    def __init__(self, components, log=None):
-        utils.Hardware.__init__(self, log)
+    def __init__(self, components):
         self.clock = components['clock']
         self.cpu = components['cpu']
         self.ram = components['ram']
@@ -77,7 +84,7 @@ class Aldebaran(utils.Hardware):
         '''
         Load boot image and boot file
         '''
-        self.log.log('aldebaran', 'Loading boot file {}...'.format(boot_file))
+        logger.info('Loading boot file %s...', boot_file)
         boot_loader = boot.BootLoader(self.ram)
         boot_image = config.create_boot_image()  # later it should be loaded from file
         boot_loader.load_image(0, boot_image)
@@ -86,13 +93,13 @@ class Aldebaran(utils.Hardware):
         if boot_exe.version != 1:
             raise UnsupportedExecutableVersionError('Unsupported version: {}'.format(boot_exe.version))
         boot_loader.load_executable(config.system_addresses['entry_point'], boot_exe)
-        self.log.log('aldebaran', 'Loaded.')
+        logger.info('Loaded.')
 
     def run(self):
         '''
         Start device controller, timer and clock
         '''
-        self.log.log('aldebaran', 'Started.')
+        logger.info('Started.')
         retval = self.device_controller.start()
         if retval != 0:
             raise AldebaranError('Could not start Device Controller')
@@ -108,11 +115,68 @@ class Aldebaran(utils.Hardware):
             stop_time = time.time()
             self.timer.stop()
             self.device_controller.stop()
-            self.log.log('aldebaran', 'Stopped after %s cycles in %s sec (%s Hz).' % (
+            logger.info(
+                'Stopped after %s cycles in %s sec (%d Hz).',
                 self.clock.cycle_count,
                 round(stop_time - start_time, 2),
                 round(self.clock.cycle_count / (stop_time - start_time)),
-            ))
+            )
+
+
+def _set_logging(verbosity):
+    levels = {
+        'ald': 'IIDDD',
+        'usr': 'IIDDD',
+        'clk': 'EIIID',  # clock signals only at -vvvv
+        'cpu': 'EIDDD',
+        'ram': 'EIIII',  # DEBUG is basically uselessly verbose
+        'tim': 'EIIDD',  # timer beats from -vvv
+        'ict': 'EIDDD',
+        'dct': 'EIDDD',
+    }
+    if verbosity > 4:
+        verbosity = 4
+    utils.config_loggers({
+        '__main__': {
+            'name': 'Aldebaran',
+            'level': levels['ald'][verbosity],
+            'color': '0;31',
+        },
+        'hardware.clock': {
+            'name': 'Clock',
+            'level': levels['clk'][verbosity],
+            'color': '1;30',
+        },
+        'hardware.cpu': {
+            'name': 'CPU',
+            'level': levels['cpu'][verbosity],
+            'color': '0;32',
+        },
+        'hardware.cpu-user': {
+            'name': '',
+            'level': levels['usr'][verbosity],
+            'color': '37;1',
+        },
+        'hardware.ram': {
+            'name': 'RAM',
+            'level': levels['ram'][verbosity],
+            'color': '0;34',
+        },
+        'hardware.timer': {
+            'name': 'Timer',
+            'level': levels['tim'][verbosity],
+            'color': '0;33',
+        },
+        'hardware.interrupt_controller': {
+            'name': 'IntCont',
+            'level': levels['ict'][verbosity],
+            'color': '0;35',
+        },
+        'hardware.device_controller': {
+            'name': 'DevCont',
+            'level': levels['dct'][verbosity],
+        },
+    })
 
 
 # pylint: disable=missing-docstring

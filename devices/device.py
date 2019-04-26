@@ -1,3 +1,4 @@
+import logging
 import requests
 import struct
 import threading
@@ -8,7 +9,10 @@ from utils import config, utils
 from hardware import device_controller
 
 
-class Device(utils.Hardware):
+logger = logging.getLogger(__name__)
+
+
+class Device:
     '''
     Generic device class
 
@@ -33,7 +37,7 @@ class Device(utils.Hardware):
 
         def do_POST(self):
             command = self.path.lstrip('/')
-            self.server.log.log('device', 'Req: %s' % command)
+            logger.debug('Req: %s', command)
             try:
                 request_body_length = int(self.headers.get('content-length'))
             except TypeError:
@@ -48,25 +52,25 @@ class Device(utils.Hardware):
                 self.end_headers()
                 self._writeline('ERROR: Cannot parse request.')
                 return
-            self.server.log.log('device', 'Request(%s): %s' % (request_body_length, request_body))
+            logger.debug('Request(%d): %s', request_body_length, request_body)
             response_code, response_text = self.server.device.handle_input(command, request_body)
             self.send_response(response_code)
             self.end_headers()
             self.wfile.write(response_text.encode('utf-8'))
 
         def log_message(self, format, *args):
-            return
+            '''
+            Turn off logging of BaseHTTPRequestHandler
+            '''
 
     class Server(ThreadingMixIn, HTTPServer):
 
-        def __init__(self, server_address, request_handler, device, log):
+        def __init__(self, server_address, request_handler, device):
             HTTPServer.__init__(self, server_address, request_handler)
             self.device = device
-            self.log = log
             self.daemon_threads = True
 
-    def __init__(self, ioport_number, device_descriptor, aldebaran_address=None, device_address=None, log=None):
-        utils.Hardware.__init__(self, log)
+    def __init__(self, ioport_number, device_descriptor, aldebaran_address=None, device_address=None):
         self.ioport_number = ioport_number
         self.device_type, self.device_id = device_descriptor
         if aldebaran_address is None:
@@ -78,7 +82,7 @@ class Device(utils.Hardware):
         else:
             self.device_host, self.device_port = device_address
         self.aldebaran_url = 'http://%s:%s/%s' % (self.aldebaran_host, self.aldebaran_device_controller_port, self.ioport_number)
-        self.log.log('device', 'Initialized.')
+        logger.info('Initialized.')
 
     def _send_request(self, command, data=None):
         if data is None:
@@ -88,11 +92,11 @@ class Device(utils.Hardware):
             data=struct.pack('B', command) + data,
             headers={'content-type': 'application/octet-stream'},
         )
-        self.log.log('device', 'Request sent.')
+        logger.debug('Request sent.')
         return r
 
     def register(self):
-        self.log.log('device', 'Registering...')
+        logger.info('Registering...')
         try:
             r = self._send_request(device_controller.COMMAND_REGISTER, struct.pack(
                 'BBBB255pH',
@@ -102,74 +106,74 @@ class Device(utils.Hardware):
                 self.device_port,
             ))
         except requests.exceptions.ConnectionError:
-            self.log.log('device', 'ERROR: Cannot connect to ALD.')
+            logger.info('ERROR: Cannot connect to ALD.')
             return 1
         if r.status_code != 200:
-            self.log.log('device', 'ERROR %s: %s' % (r.status_code, r.text))
+            logger.info('ERROR %s: %s', r.status_code, r.text)
             return 2
-        self.log.log('device', '[ALD] %s' % r.text)
-        self.log.log('device', 'Registered.')
+        logger.info('[ALD] %s', r.text)
+        logger.info('Registered.')
         return 0
 
     def unregister(self):
-        self.log.log('device', 'Unregistering...')
+        logger.info('Unregistering...')
         try:
             r = self._send_request(device_controller.COMMAND_UNREGISTER)
         except requests.exceptions.ConnectionError:
-            self.log.log('device', 'ERROR: Disconnected from ALD.')
+            logger.info('ERROR: Disconnected from ALD.')
             return 1
         if r.status_code != 200:
-            self.log.log('device', 'ERROR %s: %s' % (r.status_code, r.text))
+            logger.info('ERROR %s: %s', r.status_code, r.text)
             return 2
-        self.log.log('device', '[ALD] %s' % r.text)
-        self.log.log('device', 'Unregistered.')
+        logger.info('[ALD] %s', r.text)
+        logger.info('Unregistered.')
         return 0
 
     def send_data(self, data):
-        self.log.log('device', 'Sending data...')
+        logger.debug('Sending data...')
         try:
             r = self._send_request(device_controller.COMMAND_DATA, data)
         except requests.exceptions.ConnectionError:
-            self.log.log('device', 'ERROR: Disconnected from ALD.')
+            logger.debug('ERROR: Disconnected from ALD.')
             return 1
         if r.status_code != 200:
-            self.log.log('device', 'ERROR %s: %s' % (r.status_code, r.text))
+            logger.debug('ERROR %s: %s', r.status_code, r.text)
             return 2
-        self.log.log('device', '[ALD] %s' % r.text)
-        self.log.log('device', 'Data sent.')
+        logger.debug('[ALD] %s', r.text)
+        logger.debug('Data sent.')
         return 0
 
     def send_text(self, text):
         return self.send_data(text.encode('utf-8'))
 
     def start(self):
-        self.log.log('device', 'Starting...')
-        self.server = self.Server((self.device_host, self.device_port), self.RequestHandler, self, self.log)
+        logger.info('Starting...')
+        self.server = self.Server((self.device_host, self.device_port), self.RequestHandler, self)
         self.server_thread = threading.Thread(target=self.server.serve_forever)
         self.server_thread.daemon = True
         self.server_thread.start()
-        self.log.log('device', 'Started.')
+        logger.info('Started.')
         return 0
 
     def stop(self):
-        self.log.log('device', 'Stopping...')
+        logger.info('Stopping...')
         self.server.shutdown()
-        self.log.log('device', 'Stopped.')
+        logger.info('Stopped.')
 
     def handle_input(self, command, data):
         if command == 'ack':
             return self.handle_ack()
         if command == 'data':
             return self.handle_data(data)
-        self.log.log('device', 'ERROR: unknown command %s.' % command)
+        logger.debug('ERROR: unknown command %s.', command)
         return 400, 'Unknown command\n'
 
     def handle_ack(self):
-        self.log.log('device', 'Acknowledged by ALD.')
+        logger.debug('Acknowledged by ALD.')
         return 200, 'Ok\n'
 
     def handle_data(self, data):
-        self.log.log('device', 'Data from ALD: %s' % data.decode('utf-8'))
+        logger.debug('Data from ALD: %s', data.decode('utf-8'))
         return 200, 'Ok\n'
 
     def run(self, args):

@@ -90,66 +90,32 @@ def config_loggers(logconfig):
         logger.propagate = False
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
+        if details['name']:
+            name_prefix = '[{}] '.format(details['name'])
+        else:
+            name_prefix = ''
         if 'color' in details:
-            format_string = '\033[{}m[{}] %(message)s\033[0m'.format(
+            format_string = '\033[{}m{}%(message)s\033[0m'.format(
                 details['color'],
-                details['name'],
+                name_prefix,
             )
         else:
-            format_string = '[{}] %(message)s'.format(
-                details['name'],
+            format_string = '{}%(message)s'.format(
+                name_prefix,
             )
         handler.setFormatter(logging.Formatter(format_string))
         logger.addHandler(handler)
-        logger.setLevel(details['level'])
+        if details['level'] == 'D':
+            logger.setLevel(logging.DEBUG)
+        elif details['level'] == 'I':
+            logger.setLevel(logging.INFO)
+        elif details['level'] == 'W':
+            logger.setLevel(logging.WARNING)
+        elif details['level'] == 'E':
+            logger.setLevel(logging.ERROR)
 
 
-class Log:
-
-    def __init__(self):
-        self.term_colors = True
-        self.part_colors = {
-            'aldebaran': self.col('0;31'),
-            'clock': self.col('1;30'),
-            'cpu': self.col('0;32'),
-            'ram': self.col('0;36'),
-            'print': self.col('37;1'),
-        }
-
-    def col(self, colstr=None):
-        if not self.term_colors:
-            return ''
-        if colstr:
-            return '\033[%sm' % colstr
-        else:
-            return '\033[0m'
-
-    def log(self, part, msg):
-        if part:
-            print('%s[%s] %s%s' % (
-                self.part_colors.get(part, ''),
-                part,
-                msg,
-                self.col(),
-            ))
-        else:
-            print(msg)
-
-
-class SilentLog:
-
-    def log(self, part, msg):
-        pass
-
-
-class Hardware:
-
-    def __init__(self, log=None):
-        if log:
-            self.log = log
-        else:
-            self.log = SilentLog()
-
+# pylint: disable=missing-docstring
 
 class OutOfRangeError(Exception):
     pass

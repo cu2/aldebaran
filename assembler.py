@@ -124,6 +124,7 @@ class Assembler:
                     '{:4}'.format(line_number),
                     utils.word_to_str(opcode_pos),
                     ' '.join([utils.byte_to_str(op) for op in line_opcode]),
+                    ' ' if line_opcode else '',
                     '   ' * (max_line_opcode_length - len(line_opcode)),
                     source_line,
                 ])
@@ -333,23 +334,20 @@ MAX_LINE_OPCODE_LENGTH = 15
 
 
 def _set_logging(verbosity):
-    if verbosity == 0:
-        level_asm = logging.INFO
-        level_token = logging.ERROR
-    elif verbosity == 1:
-        level_asm = logging.DEBUG
-        level_token = logging.ERROR
-    else:
-        level_asm = logging.DEBUG
-        level_token = logging.DEBUG
+    levels = {
+        'asm': 'IDD',
+        'tok': 'EED',
+    }
+    if verbosity > 2:
+        verbosity = 2
     utils.config_loggers({
         '__main__': {
             'name': 'Assembler',
-            'level': level_asm,
+            'level': levels['asm'][verbosity],
         },
         'utils.tokenizer': {
             'name': 'Tokenizer',
-            'level': level_token,
+            'level': levels['tok'][verbosity],
             'color': '1;30',
         },
     })

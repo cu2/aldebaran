@@ -1,13 +1,16 @@
 import datetime
+import logging
 import time
 
 from utils import utils
 
 
-class Clock(utils.Hardware):
+logger = logging.getLogger(__name__)
 
-    def __init__(self, freq, log=None):
-        utils.Hardware.__init__(self, log)
+
+class Clock:
+
+    def __init__(self, freq):
         if freq:
             self.speed = 1 / freq
         else:
@@ -21,19 +24,23 @@ class Clock(utils.Hardware):
 
     def run(self):
         if not self.cpu:
-            self.log.log('clock', 'ERROR: Cannot run without CPU.')
+            logger.info('ERROR: Cannot run without CPU.')
             return 1
-        self.log.log('clock', 'Started.')
+        logger.info('Started.')
         self.start_time = time.time()
         shutdown = False
         try:
             while not shutdown:
-                self.log.log('clock', 'Beat %s' % datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11])
+                logger.debug(
+                    'Cycle %d @ %s',
+                    self.cycle_count + 1,
+                    datetime.datetime.fromtimestamp(self.start_time).strftime('%H:%M:%S.%f')[:11],
+                )
                 shutdown = self.cpu.step()
                 self.cycle_count += 1
                 self.sleep()
         except (KeyboardInterrupt, SystemExit):
-            self.log.log('clock', 'Stopped.')
+            logger.info('Stopped.')
         return 0
 
     def sleep(self):

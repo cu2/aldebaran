@@ -1,7 +1,3 @@
-class UnknownOpcodeError(Exception):
-    pass
-
-
 class ArgumentCountError(Exception):
     pass
 
