@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock
 
 from utils.tokenizer import Tokenizer, Token, Reference, TokenType,\
-    UnexpectedCharacterError, InvalidStringLiteralError
+    UnexpectedCharacterError, InvalidStringLiteralError, UnknownMacroError
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS
 
 
@@ -15,14 +15,12 @@ class TestTokenizer(unittest.TestCase):
             'word_registers': WORD_REGISTERS,
             'byte_registers': BYTE_REGISTERS,
         })
-        self.tokenizer._log_error = Mock()
 
     def test_label_alone(self):
         tokens = self.tokenizer.tokenize('labelname:')
         self.assertListEqual(tokens, [
             Token(TokenType.LABEL, 'labelname', 0),
         ])
-        self.assertEqual(self.tokenizer._log_error.call_count, 0)
 
     def test_code_alone(self):
         tokens = self.tokenizer.tokenize('mov ax 0x0100')
@@ -100,9 +98,11 @@ class TestTokenizer(unittest.TestCase):
     def test_error_unexpected_char(self):
         with self.assertRaises(UnexpectedCharacterError):
             self.tokenizer.tokenize('label: mov ?')
-        self.assertEqual(self.tokenizer._log_error.call_count, 1)
 
     def test_error_invalid_string_literal(self):
         with self.assertRaises(InvalidStringLiteralError):
             self.tokenizer.tokenize('label: mov \'single quote \\\' between single quotes\'')
-        self.assertEqual(self.tokenizer._log_error.call_count, 1)
+
+    def test_error_unknown_macro(self):
+        with self.assertRaises(UnknownMacroError):
+            self.tokenizer.tokenize('label: .mac x')

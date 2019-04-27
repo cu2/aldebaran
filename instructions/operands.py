@@ -6,6 +6,7 @@ from collections import namedtuple
 from enum import Enum
 
 from utils import utils
+from utils.errors import AldebaranError
 from utils.tokenizer import TokenType
 
 
@@ -361,7 +362,11 @@ def _get_register_name_by_code(register_code):
 
 # pylint: disable=missing-docstring
 
-class RegisterError(Exception):
+class OperandError(AldebaranError):
+    pass
+
+
+class RegisterError(OperandError):
     pass
 
 
@@ -373,17 +378,17 @@ class InvalidRegisterCodeError(RegisterError):
     pass
 
 
-class InvalidTokenError(Exception):
+class InvalidTokenError(OperandError):
     pass
 
 
-class InvalidOperandError(Exception):
+class InvalidOperandError(OperandError):
     pass
 
 
-class InvalidWriteOperationError(Exception):
+class InvalidWriteOperationError(OperandError):
     pass
 
 
-class InsufficientOperandBufferError(Exception):
+class InsufficientOperandBufferError(OperandError):
     pass

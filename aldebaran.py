@@ -19,6 +19,7 @@ from utils import boot
 from utils import config
 from utils import utils
 from utils import executable
+from utils.errors import AldebaranError
 
 
 logger = logging.getLogger(__name__)
@@ -180,10 +181,6 @@ def _set_logging(verbosity):
 
 
 # pylint: disable=missing-docstring
-
-class AldebaranError(Exception):
-    pass
-
 
 class UnsupportedExecutableVersionError(AldebaranError):
     pass

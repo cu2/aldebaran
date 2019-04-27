@@ -2,6 +2,7 @@ import logging
 
 from instructions import operands
 from utils import utils
+from utils.errors import AldebaranError
 
 
 logger = logging.getLogger(__name__)
@@ -212,7 +213,7 @@ class CPU:
 
 # pylint: disable=missing-docstring
 
-class CPUError(Exception):
+class CPUError(AldebaranError):
     pass
 
 

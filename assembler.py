@@ -11,9 +11,10 @@ import os
 
 from instructions.instruction_set import INSTRUCTION_SET
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS, get_operand_opcode
+from utils import utils
+from utils.errors import AldebaranError
 from utils.executable import Executable
 from utils.tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
-from utils import utils
 
 
 logger = logging.getLogger(__name__)
@@ -37,15 +38,18 @@ def main():
     )
     args = parser.parse_args()
     _set_logging(args.verbose)
-    assembler = Assembler(
-        instruction_set=INSTRUCTION_SET,
-        registers={
-            'byte': BYTE_REGISTERS,
-            'word': WORD_REGISTERS,
-        },
-    )
-    for source_file in args.file:
-        assembler.assemble_file(source_file)
+    try:
+        assembler = Assembler(
+            instruction_set=INSTRUCTION_SET,
+            registers={
+                'byte': BYTE_REGISTERS,
+                'word': WORD_REGISTERS,
+            },
+        )
+        for source_file in args.file:
+            assembler.assemble_file(source_file)
+    except AldebaranError as ex:
+        logger.error(ex)
 
 
 class Assembler:
@@ -139,13 +143,18 @@ class Assembler:
     def _tokenize(self):
         tokenized_code = []
         for idx, source_line in enumerate(self.source_code.split('\n')):
-            meaningful_tokens = [
-                token
-                for token in self.tokenizer.tokenize(source_line)
-                if token.type != TokenType.COMMENT
-            ]
+            line_number = idx + 1
+            try:
+                meaningful_tokens = [
+                    token
+                    for token in self.tokenizer.tokenize(source_line)
+                    if token.type != TokenType.COMMENT
+                ]
+            except AldebaranError as ex:
+                msg, pos = ex.args
+                _raise_error(source_line, line_number, pos, str(msg), ex.__class__)
             tokenized_code.append((
-                idx + 1,
+                line_number,
                 source_line,
                 meaningful_tokens,
             ))
@@ -157,9 +166,9 @@ class Assembler:
                 if token.type == TokenType.LABEL:
                     label_name = token.value
                     if label_name in self.labels:
-                        self._raise_error(source_line, line_number, token.pos, 'Label already defined', LabelError)
+                        _raise_error(source_line, line_number, token.pos, 'Label already defined', LabelError)
                     if label_name in self.keywords:
-                        self._raise_error(source_line, line_number, token.pos, 'Label name cannot be keyword', LabelError)
+                        _raise_error(source_line, line_number, token.pos, 'Label name cannot be keyword', LabelError)
                     self.labels[label_name] = 0
 
     def _generate_opcode(self, tokenized_code):
@@ -194,24 +203,24 @@ class Assembler:
                     state = ParserState.MACRO
                     macro_name = token.value
                 else:
-                    self._raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
+                    _raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
             elif state == ParserState.INSTRUCTION:
                 if token.type in ARGUMENT_TYPES:
                     args.append(token)
                 else:
-                    self._raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
+                    _raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
             elif state == ParserState.MACRO:
                 if token.type in ARGUMENT_TYPES:
                     args.append(token)
                 else:
-                    self._raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
+                    _raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
             elif state == ParserState.ARGUMENTS:
                 if token.type in ARGUMENT_TYPES:
                     args.append(token)
                 else:
-                    self._raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
+                    _raise_error(source_line, line_number, token.pos, 'Unexpected token: {}'.format(token.value), ParserError)
             else:
-                self._raise_error(source_line, line_number, token.pos, 'Unknown parser state: {}'.format(state), ParserError)
+                _raise_error(source_line, line_number, token.pos, 'Unknown parser state: {}'.format(state), ParserError)
         if inst_name is not None:
             line_opcode = self._parse_instruction(inst_name, args, source_line, line_number, opcode_pos)
         elif macro_name is not None:
@@ -224,9 +233,9 @@ class Assembler:
         inst_opcode, inst = self.instruction_mapping[inst_name]
         operands = self._parse_operands(args, source_line, line_number, opcode_pos)
         if len(operands) < inst.operand_count:
-            self._raise_error(source_line, line_number, None, 'Not enough operands: {} instead of {}'.format(len(operands), inst.operand_count), OperandError)
+            _raise_error(source_line, line_number, None, 'Not enough operands: {} instead of {}'.format(len(operands), inst.operand_count), OperandError)
         if len(operands) > inst.operand_count:
-            self._raise_error(source_line, line_number, None, 'Too many operands: {} instead of {}'.format(len(operands), inst.operand_count), OperandError)
+            _raise_error(source_line, line_number, None, 'Too many operands: {} instead of {}'.format(len(operands), inst.operand_count), OperandError)
         # TODO: check inst.oplens
         # if None: no check
         # otherwise list of strings of B|W|*
@@ -246,17 +255,17 @@ class Assembler:
                 elif arg.type == TokenType.WORD_LITERAL:
                     opcode += utils.word_to_binary(arg.value)
                 else:
-                    self._raise_error(source_line, line_number, arg.pos, 'Parameter of macro DAT must be a byte, word or string literal, not {}'.format(arg.type), MacroError)
+                    _raise_error(source_line, line_number, arg.pos, 'Parameter of macro DAT must be a byte, word or string literal, not {}'.format(arg.type), MacroError)
             return opcode
         if macro_name == 'DATN':
             if len(args) != 2:
-                self._raise_error(source_line, line_number, None, 'Macro DATN requires exactly 2 parameters, not {}'.format(len(args)), MacroError)
+                _raise_error(source_line, line_number, None, 'Macro DATN requires exactly 2 parameters, not {}'.format(len(args)), MacroError)
             repeat_arg, value_arg = args
             if repeat_arg.type not in {TokenType.BYTE_LITERAL, TokenType.WORD_LITERAL}:
-                self._raise_error(source_line, line_number, repeat_arg.pos, 'The first parameter of macro DATN must be a byte or word literal, not {}'.format(repeat_arg.type), MacroError)
+                _raise_error(source_line, line_number, repeat_arg.pos, 'The first parameter of macro DATN must be a byte or word literal, not {}'.format(repeat_arg.type), MacroError)
             repeat_number = repeat_arg.value
             if value_arg.type not in {TokenType.BYTE_LITERAL, TokenType.WORD_LITERAL, TokenType.STRING_LITERAL}:
-                self._raise_error(source_line, line_number, value_arg.pos, 'The second parameter of macro DATN must be a byte, word or string literal, not {}'.format(value_arg.type), MacroError)
+                _raise_error(source_line, line_number, value_arg.pos, 'The second parameter of macro DATN must be a byte, word or string literal, not {}'.format(value_arg.type), MacroError)
             opcode = []
             for _ in range(repeat_number):
                 if value_arg.type == TokenType.STRING_LITERAL:
@@ -267,19 +276,33 @@ class Assembler:
                     opcode += utils.word_to_binary(value_arg.value)
             return opcode
         # TODO: add more macros
-        self._raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)
+        _raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)
 
     def _parse_operands(self, args, source_line, line_number, opcode_pos):
         operands = []
         for arg in args:
             if arg.type == TokenType.STRING_LITERAL:
-                self._raise_error(source_line, line_number, arg.pos, 'String literal cannot be instruction operand: {}'.format(arg.value), OperandError)
+                _raise_error(source_line, line_number, arg.pos, 'String literal cannot be instruction operand: {}'.format(arg.value), OperandError)
             if arg.type in LABEL_REFERENCE_TYPES:
                 arg = self._substitute_label(arg, source_line, line_number, opcode_pos)
             try:
                 operands.append(get_operand_opcode(arg))
-            except Exception:
-                self._raise_error(source_line, line_number, arg.pos, 'Could not parse operand: {}'.format(arg), OperandError)
+            except AldebaranError as ex:
+                orig_msg = '{}({})'.format(
+                    ex.__class__.__name__,
+                    str(ex),
+                )
+                arg_name = '{}({})'.format(
+                    arg.type.name,
+                    arg.value,
+                )
+                _raise_error(
+                    source_line,
+                    line_number,
+                    arg.pos,
+                    'Could not parse operand {} due to {}'.format(arg_name, orig_msg),
+                    OperandError,
+                )
         return operands
 
     def _substitute_label(self, arg, source_line, line_number, opcode_pos):
@@ -291,7 +314,7 @@ class Assembler:
         try:
             label_address = self.labels[label_name]
         except KeyError:
-            self._raise_error(source_line, line_number, arg.pos, 'Unknown label reference: {}'.format(arg.value), LabelError)
+            _raise_error(source_line, line_number, arg.pos, 'Unknown label reference: {}'.format(arg.value), LabelError)
         relative_address = label_address - opcode_pos
         new_type = {
             TokenType.ADDRESS_LABEL: TokenType.ADDRESS_WORD_LITERAL,
@@ -310,17 +333,6 @@ class Assembler:
             arg.pos,
         )
 
-    def _raise_error(self, code, line_number, pos, error_message, exception):
-        self._log_error(code, line_number, pos, error_message)
-        raise exception(error_message)
-
-    def _log_error(self, code, line_number, pos, error_message):
-        # TODO: log instead of print
-        print('ERROR in line {}: {}'.format(line_number, error_message))
-        print(code)
-        if pos is not None:
-            print(' ' * pos + '^')
-
 
 ParserState = Enum('ParserState', [  # pylint: disable=invalid-name
     'LABEL',
@@ -331,6 +343,14 @@ ParserState = Enum('ParserState', [  # pylint: disable=invalid-name
 
 
 MAX_LINE_OPCODE_LENGTH = 15
+
+
+def _raise_error(code, line_number, pos, error_message, exception):
+    logger.error('ERROR in line %d:', line_number)
+    logger.error(code)
+    if pos is not None:
+        logger.error(' ' * pos + '^')
+    raise exception(error_message)
 
 
 def _set_logging(verbosity):
@@ -355,7 +375,7 @@ def _set_logging(verbosity):
 
 # pylint: disable=missing-docstring
 
-class AssemblerError(Exception):
+class AssemblerError(AldebaranError):
     pass
 
 

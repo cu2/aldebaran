@@ -61,6 +61,8 @@ from collections import namedtuple
 from enum import Enum
 import logging
 
+from utils.errors import AldebaranError
+
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +154,7 @@ class Tokenizer:
         for match in self.tokenizer_regex.finditer(code.upper()):
             case_name = match.lastgroup
             logger.debug('Match: %s @ %d', case_name, match.start())
-            case_handler = CaseHandler(code, match, self.keywords, self._raise_error)
+            case_handler = CaseHandler(code, match, self.keywords)
             token = case_handler.handle_case(case_name)
             if token is None:
                 continue
@@ -255,16 +257,6 @@ class Tokenizer:
         ]
         return token_rules
 
-    def _log_error(self, code, pos, error_message):
-        # TODO: log instead of print
-        print('ERROR:', error_message)
-        print(code)
-        print(' ' * pos + '^')
-
-    def _raise_error(self, code, pos, error_message, exception):
-        self._log_error(code, pos, error_message)
-        raise exception(error_message)
-
 
 Rule = namedtuple('Rule', [
     'regex',  # raw string (regex)
@@ -277,13 +269,12 @@ class CaseHandler:
     Handle cases of the tokenizer regex
     '''
 
-    def __init__(self, code, match, keywords, _raise_error):
+    def __init__(self, code, match, keywords):
         self.code = code
         self.match = match
         self.raw_value = match.group()
         self.original_value = code[match.start():match.end()]
         self.keywords = keywords
-        self.tokenizer_raise_error = _raise_error
 
     def handle_case(self, case_name):
         '''
@@ -418,6 +409,7 @@ class CaseHandler:
         return int(self.raw_value, 16)
 
     def _get_ref_value(self, ref_type):
+        assert ref_type in {'abs_reg', 'word_reg', 'word_byte', 'word', 'label_reg', 'label_byte', 'label'}
         base_subgroup_name = 'base_{}'.format(ref_type)
         base = self.match.group(base_subgroup_name)
         try:
@@ -451,20 +443,10 @@ class CaseHandler:
             offset = int(offset, 16)
         elif ref_type == 'label':
             base = self._get_subgroup_value(base_subgroup_name)
-        else:
-            self._raise_error(
-                'Unknown reference type: {}'.format(ref_type),
-                UnknownReferenceTypeError,
-            )
         return Reference(base, offset, length)
 
     def _raise_error(self, error_message, exception):
-        return self.tokenizer_raise_error(
-            self.code,
-            self.match.start(),
-            error_message,
-            exception,
-        )
+        raise exception(error_message, self.match.start())
 
 
 
@@ -476,7 +458,7 @@ Case = namedtuple('Case', [
 
 # pylint: disable=missing-docstring
 
-class TokenizerError(Exception):
+class TokenizerError(AldebaranError):
     pass
 
 
@@ -485,14 +467,6 @@ class UnexpectedCharacterError(TokenizerError):
 
 
 class InvalidStringLiteralError(TokenizerError):
-    pass
-
-
-class UnknownTokenError(TokenizerError):
-    pass
-
-
-class UnknownReferenceTypeError(TokenizerError):
     pass
 
 

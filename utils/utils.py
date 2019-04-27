@@ -4,6 +4,8 @@ Utils, like binary_to_number, set_low, set_high...
 
 import logging
 
+from .errors import AldebaranError
+
 
 def binary_to_number(binary, signed=False):
     '''
@@ -117,7 +119,7 @@ def config_loggers(logconfig):
 
 # pylint: disable=missing-docstring
 
-class OutOfRangeError(Exception):
+class OutOfRangeError(AldebaranError):
     pass
 
 

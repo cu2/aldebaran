@@ -9,6 +9,7 @@ Module defining the Aldebaran executable format(s)
 '''
 
 from utils import utils
+from utils.errors import AldebaranError
 
 
 ALDEBARAN_EXECUTABLE_SIGNATURE = [
@@ -91,7 +92,7 @@ class Executable:
 
 # pylint: disable=missing-docstring
 
-class ExecutableError(Exception):
+class ExecutableError(AldebaranError):
     pass
 
 
