@@ -23,6 +23,7 @@ from utils.errors import AldebaranError
 
 
 logger = logging.getLogger(__name__)
+logger_crash_dump = logging.getLogger(__name__ + '-crash-dump')
 
 
 def main():
@@ -42,25 +43,35 @@ def main():
     )
     args = parser.parse_args()
     _set_logging(args.verbose)
-    boot_file = args.file
-    ioports = [
-        device_controller.IOPort(ioport_number)
-        for ioport_number in range(config.number_of_ioports)
-    ]
-    aldebaran = Aldebaran({
-        'clock': Clock(config.clock_freq),
-        'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET),
-        'ram': RAM(config.ram_size),
-        'interrupt_controller': interrupt_controller.InterruptController(),
-        'device_controller': device_controller.DeviceController(
-            config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
-            config.system_addresses, config.system_interrupts,
-            ioports,
-        ),
-        'timer': timer.Timer(config.timer_freq),
-    })
-    aldebaran.boot(boot_file)
-    aldebaran.run()
+
+    try:
+        boot_file = args.file
+        ioports = [
+            device_controller.IOPort(ioport_number)
+            for ioport_number in range(config.number_of_ioports)
+        ]
+        aldebaran = Aldebaran({
+            'clock': Clock(config.clock_freq),
+            'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET),
+            'ram': RAM(config.ram_size),
+            'interrupt_controller': interrupt_controller.InterruptController(),
+            'device_controller': device_controller.DeviceController(
+                config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
+                config.system_addresses, config.system_interrupts,
+                ioports,
+            ),
+            'timer': timer.Timer(config.timer_freq),
+        })
+        aldebaran.boot(boot_file)
+    except AldebaranError as ex:
+        logger.error(ex)
+        return
+
+    try:
+        aldebaran.run()
+    except AldebaranError as ex:
+        logger.error(ex)
+        aldebaran.crash_dump()
 
 
 class Aldebaran:
@@ -123,6 +134,71 @@ class Aldebaran:
                 round(self.clock.cycle_count / (stop_time - start_time)),
             )
 
+    def crash_dump(self):
+        '''
+        Print crash dump
+        '''
+        logger_crash_dump.error('### CRASH DUMP ###')
+        # ip
+        ip = self.cpu.registers['IP']
+        logger_crash_dump.error('')
+        logger_crash_dump.error('IP=%s', utils.word_to_str(ip))
+        logger_crash_dump.error('Entry point=%s', utils.word_to_str(self.cpu.system_addresses['entry_point']))
+        # ram
+        ram_page_size = 16
+        ram_page = (ip // ram_page_size) * ram_page_size
+        logger_crash_dump.error('')
+        logger_crash_dump.error('RAM:')
+        for page_offset in range(-2, 3):
+            offset = page_offset * ram_page_size
+            if offset + ram_page < 0:
+                continue
+            if offset + ram_page + ram_page_size - 1 > self.ram.size:
+                continue
+            logger_crash_dump.error(
+                '%s: %s',
+                utils.word_to_str(offset + ram_page),
+                ''.join([
+                    ('>' if idx == ip else ' ') + utils.byte_to_str(self.ram.mem[idx])
+                    for idx in range(offset + ram_page, offset + ram_page + ram_page_size)
+                ]),
+            )
+        # stack
+        sp = self.cpu.registers['SP']
+        bp = self.cpu.registers['BP']
+        logger_crash_dump.error('')
+        logger_crash_dump.error('SP=%s', utils.word_to_str(sp))
+        logger_crash_dump.error('BP=%s', utils.word_to_str(bp))
+        logger_crash_dump.error('Bottom of stack=%s', utils.word_to_str(self.cpu.system_addresses['SP']))
+        logger_crash_dump.error('')
+        logger_crash_dump.error('Stack:')
+        stack_page_size = 16
+        stack_page = (sp // stack_page_size) * stack_page_size
+        if stack_page < 0:
+            stack_page = 0
+        for page_offset in range(-1, 4):
+            offset = page_offset * stack_page_size
+            if offset + stack_page < 0:
+                continue
+            if offset + stack_page + stack_page_size - 1 > self.ram.size:
+                continue
+            logger_crash_dump.error(
+                '%s:  %s',
+                utils.word_to_str(offset + stack_page),
+                ''.join([utils.byte_to_str(self.ram.mem[idx]) + (
+                    (
+                        '{' if idx == bp else '<'
+                    ) if idx == sp else (
+                        '[' if idx == bp else ' '
+                    )
+                ) for idx in range(offset + stack_page, offset + stack_page + stack_page_size)]),
+            )
+        # registers
+        logger_crash_dump.error('')
+        logger_crash_dump.error('Registers:')
+        for reg in ['AX', 'BX', 'CX', 'DX', 'SI', 'DI']:
+            logger_crash_dump.error('%s=%s', reg, utils.word_to_str(self.cpu.registers[reg]))
+
 
 def _set_logging(verbosity):
     levels = {
@@ -142,6 +218,10 @@ def _set_logging(verbosity):
             'name': 'Aldebaran',
             'level': levels['ald'][verbosity],
             'color': '0;31',
+        },
+        '__main__-crash-dump': {
+            'name': '',
+            'level': levels['ald'][verbosity],
         },
         'hardware.clock': {
             'name': 'Clock',
