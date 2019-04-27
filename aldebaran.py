@@ -177,6 +177,10 @@ def _set_logging(verbosity):
             'name': 'DevCont',
             'level': levels['dct'][verbosity],
         },
+        'hardware.device_controller-ioport': {
+            'name': '',
+            'level': levels['dct'][verbosity],
+        },
     })
 
 

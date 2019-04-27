@@ -10,6 +10,7 @@ from utils import utils
 
 
 logger = logging.getLogger(__name__)
+logger_ioport = logging.getLogger(__name__ + '-ioport')
 
 
 COMMAND_REGISTER = 0
@@ -262,8 +263,8 @@ class IOPort:
         self._log(logging.DEBUG, message, *args)
 
     def _log(self, level, message, *args):
-        full_message = '[ioport {}] {}'.format(
+        full_message = '[IOPort {}] {}'.format(
             self.ioport_number,
             message,
         )
-        logger.log(level, full_message, *args)
+        logger_ioport.log(level, full_message, *args)
