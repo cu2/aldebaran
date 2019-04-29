@@ -88,7 +88,7 @@ class CPU:
             utils.word_to_str(ram_page),
             utils.word_to_str(ram_page + ram_page_size - 1),
             ''.join([
-                ('>' if idx == self.registers['IP'] else ' ') + utils.byte_to_str(self.ram.mem[idx])
+                ('>' if idx == self.registers['IP'] else ' ') + utils.byte_to_str(self.ram.read_byte(idx))
                 for idx in range(ram_page, ram_page + ram_page_size)
             ]),
         )
@@ -98,7 +98,7 @@ class CPU:
             utils.word_to_str(self.registers['BP']),
             utils.word_to_str(stack_page),
             utils.word_to_str(stack_page + stack_page_size - 1),
-            ''.join([utils.byte_to_str(self.ram.mem[idx]) + (
+            ''.join([utils.byte_to_str(self.ram.read_byte(idx)) + (
                 (
                     '{' if idx == self.registers['BP'] else '<'
                 ) if idx == self.registers['SP'] else (

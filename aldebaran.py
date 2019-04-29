@@ -187,7 +187,7 @@ class Aldebaran:
                 '%s: %s',
                 utils.word_to_str(offset + ram_page),
                 ''.join([
-                    ('>' if idx == ip else ' ') + utils.byte_to_str(self.ram.mem[idx])
+                    ('>' if idx == ip else ' ') + utils.byte_to_str(self.ram.read_byte(idx))
                     for idx in range(offset + ram_page, offset + ram_page + ram_page_size)
                 ]),
             )
@@ -213,7 +213,7 @@ class Aldebaran:
             logger_crash_dump.error(
                 '%s:  %s',
                 utils.word_to_str(offset + stack_page),
-                ''.join([utils.byte_to_str(self.ram.mem[idx]) + (
+                ''.join([utils.byte_to_str(self.ram.read_byte(idx)) + (
                     (
                         '{' if idx == bp else '<'
                     ) if idx == sp else (
