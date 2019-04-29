@@ -10,7 +10,7 @@
 
 ### Clock
 
-The clock sends the CPU a beat every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next beat as soon as possible. So the effective clock frequency (printed after Aldebaran shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends beats as fast as possible.
+The clock sends the CPU a signal every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next signal as soon as possible. So the effective clock frequency (printed after Aldebaran shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends signals as fast as possible.
 
 
 ### RAM
@@ -20,7 +20,7 @@ A simple RAM module with 65536 bytes of storage. Capable of reading and writing 
 
 ### CPU
 
-For every clock beat the CPU:
+For every clock signal the CPU:
 
 - checks if there's a hardware interrupt coming from the Interrupt Controller (only if the Interrupt Flag is set)
 - if yes, it calls the specified interrupt handler routine (based on the Interrupt Vector Table)

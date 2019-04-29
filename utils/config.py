@@ -23,7 +23,6 @@ number_of_interrupts = 256
 IVT_size = number_of_interrupts * 2
 device_registry_size = number_of_ioports * 4
 number_of_timers = 16
-clock_freq = 10000  # Hz
 timer_freq = 10  # Hz
 
 system_interrupts = {

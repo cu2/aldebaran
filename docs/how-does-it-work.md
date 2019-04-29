@@ -5,7 +5,7 @@
 
 - BootLoader loads an image into RAM: default interrupts handlers, device registry...
 - BootLoader loads an executable into RAM: kernel or other program
-- Clock sends the CPU a beat periodically
+- Clock sends the CPU a signal periodically
 - CPU checks hardware interrupts, if there's any, it calls the interrupt handler routine
 - CPU executes the instruction at `IP`:
     - it reads the byte at `IP` and decodes it into an instruction

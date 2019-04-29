@@ -20,7 +20,9 @@ class CPU:
         }
         self.ram = None
         self.interrupt_controller = None
+        self.device_controller = None
         self.timer = None
+        self.architecture_registered = False
         self.registers = {
             'IP': self.system_addresses['entry_point'],
             'SP': self.system_addresses['SP'],
@@ -44,11 +46,9 @@ class CPU:
         self.interrupt_controller = interrupt_controller
         self.device_controller = device_controller
         self.timer = timer
+        self.architecture_registered = True
 
     def step(self):
-        if not self.ram:
-            logger.info('ERROR: Cannot run without RAM.')
-            return
         if self.interrupt_controller and self.flags['interrupt']:
             interrupt_number = self.interrupt_controller.check()
             if interrupt_number is not None:
@@ -71,7 +71,6 @@ class CPU:
         ]))
         next_ip = current_instruction.run()
         self.registers['IP'] = next_ip % self.ram.size
-        return self.shutdown
 
     def mini_debugger(self):
         if logger.level != logging.DEBUG:

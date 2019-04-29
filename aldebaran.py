@@ -36,6 +36,12 @@ def main():
         help='Aldebaran executable file'
     )
     parser.add_argument(
+        '-c', '--clock',
+        type=int,
+        default=0,
+        help='Clock frequency; default = 0 (meaning TURBO mode)'
+    )
+    parser.add_argument(
         '-v', '--verbose',
         action='count',
         default=0,
@@ -50,8 +56,9 @@ def main():
             device_controller.IOPort(ioport_number)
             for ioport_number in range(config.number_of_ioports)
         ]
+        clock_freq = args.clock
         aldebaran = Aldebaran({
-            'clock': Clock(config.clock_freq),
+            'clock': Clock(clock_freq),
             'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET),
             'ram': RAM(config.ram_size),
             'interrupt_controller': interrupt_controller.InterruptController(),
@@ -66,12 +73,16 @@ def main():
     except AldebaranError as ex:
         logger.error(ex)
         return
+    except (KeyboardInterrupt, SystemExit):
+        return
 
     try:
         aldebaran.run()
     except AldebaranError as ex:
         logger.error(ex)
         aldebaran.crash_dump()
+    except (KeyboardInterrupt, SystemExit):
+        pass
 
 
 class Aldebaran:
@@ -120,19 +131,36 @@ class Aldebaran:
             raise AldebaranError('Could not start Timer')
         start_time = time.time()
         try:
-            retval = self.clock.run()
-            if retval != 0:
-                raise AldebaranError('Could not start Clock')
+            self.clock.run()
         finally:
             stop_time = time.time()
             self.timer.stop()
             self.device_controller.stop()
+            self._print_stats(start_time, stop_time)
+
+    def _print_stats(self, start_time, stop_time):
+        full_time = stop_time - start_time
+        sleep_time = self.clock.sleep_time
+        run_time = full_time - sleep_time
+        logger.info(
+            'Stopped after %s cycles in %s sec (%d Hz).',
+            self.clock.cycle_count,
+            round(full_time, 2),
+            round(self.clock.cycle_count / full_time),
+        )
+        if self.clock.cycle_count > 0:
             logger.info(
-                'Stopped after %s cycles in %s sec (%d Hz).',
-                self.clock.cycle_count,
-                round(stop_time - start_time, 2),
-                round(self.clock.cycle_count / (stop_time - start_time)),
+                'Average runtime/sleeptime/cycletime: %s / %s / %s us',
+                round(run_time / self.clock.cycle_count * 1000000, 2),
+                round(sleep_time / self.clock.cycle_count * 1000000, 2),
+                round(full_time / self.clock.cycle_count * 1000000, 2),
             )
+        logger.info(
+            'Total runtime/sleeptime/cycletime: %s / %s / %s sec',
+            round(run_time, 2),
+            round(sleep_time, 2),
+            round(full_time, 2),
+        )
 
     def crash_dump(self):
         '''
