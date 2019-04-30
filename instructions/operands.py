@@ -169,7 +169,7 @@ def parse_operand_buffer(operand_buffer, operand_count):
                     ], signed=True)
                     operand_buffer_idx += 2
                 else:
-                    raise InvalidOperandError(operand_buffer, operand_buffer_idx)
+                    raise InvalidOperandError('Address must be word.')
             elif optype == OpType.REGISTER:
                 opreg = _get_register_name_by_code(raw_opreg)
                 if oplen == OpLen.WORD:
@@ -209,8 +209,10 @@ def parse_operand_buffer(operand_buffer, operand_count):
                     operand_buffer[operand_buffer_idx+1],
                 ], signed=True)
                 operand_buffer_idx += 2
+            elif optype == OpType.EXTENDED:
+                raise InvalidOperandError('Extended optype not supported yet.')
             else:
-                raise InvalidOperandError(operand_buffer, operand_buffer_idx)
+                raise InvalidOperandError('Invalid operand type: {}'.format(optype))
             operands.append(Operand(oplen, optype, opreg, opvalue, opbase, opoffset))
     except IndexError:
         raise InsufficientOperandBufferError(operand_buffer)
