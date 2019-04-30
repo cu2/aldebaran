@@ -55,10 +55,11 @@ class SETTMR(Instruction):
 
     def do(self):
         subtimer_number = self.get_operand(0)
-        self.cpu.timer.set_subtimer(subtimer_number, {
-            'mode': self.get_operand(1),
-            'speed': self.get_operand(2),
-            'phase': self.get_operand(3),
-            'interrupt_number': self.get_operand(4),
-        })
+        self.cpu.timer.set_subtimer(
+            subtimer_number,
+            raw_mode=self.get_operand(1),
+            speed=self.get_operand(2),
+            phase=self.get_operand(3),
+            interrupt_number=self.get_operand(4),
+        )
         self.cpu.cpu_log('Subtimer %s set.', utils.byte_to_str(subtimer_number))

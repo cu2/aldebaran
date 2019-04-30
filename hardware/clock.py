@@ -6,6 +6,7 @@ import logging
 import time
 
 from utils.errors import ArchitectureError
+from .timer import TimerCrashError
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,8 @@ class Clock:
                 self._sleep()
                 if self.cpu.shutdown:
                     break
+                if not self.cpu.timer.is_alive():
+                    raise TimerCrashError('Timer crashed')
         except (KeyboardInterrupt, SystemExit):
             pass
         finally:

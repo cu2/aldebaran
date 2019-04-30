@@ -67,7 +67,7 @@ def main():
                 config.system_addresses, config.system_interrupts,
                 ioports,
             ),
-            'timer': timer.Timer(config.timer_freq),
+            'timer': timer.Timer(config.timer_freq, config.number_of_subtimers),
         })
         aldebaran.boot(boot_file)
     except AldebaranError as ex:
@@ -126,9 +126,7 @@ class Aldebaran:
         retval = self.device_controller.start()
         if retval != 0:
             raise AldebaranError('Could not start Device Controller')
-        retval = self.timer.start()
-        if retval != 0:
-            raise AldebaranError('Could not start Timer')
+        self.timer.start()
         start_time = time.time()
         try:
             self.clock.run()

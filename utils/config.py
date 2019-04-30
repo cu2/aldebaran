@@ -22,7 +22,7 @@ ram_size = 0x10000
 number_of_interrupts = 256
 IVT_size = number_of_interrupts * 2
 device_registry_size = number_of_ioports * 4
-number_of_timers = 16
+number_of_subtimers = 16
 timer_freq = 10  # Hz
 
 system_interrupts = {
