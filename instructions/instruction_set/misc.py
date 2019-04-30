@@ -8,7 +8,9 @@ from utils import utils
 
 class NOP(Instruction):
     '''No operation'''
-    pass
+
+    def do(self):
+        pass
 
 
 class HLT(Instruction):
