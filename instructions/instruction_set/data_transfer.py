@@ -28,9 +28,9 @@ class PUSH(Instruction):
 
     def do(self):
         if self.operands[0].oplen == OpLen.WORD:
-            self.cpu.stack_push_word(self.get_operand(0))
+            self.cpu.stack.push_word(self.get_operand(0))
         else:
-            self.cpu.stack_push_byte(self.get_operand(0))
+            self.cpu.stack.push_byte(self.get_operand(0))
 
 
 class POP(Instruction):
@@ -40,23 +40,23 @@ class POP(Instruction):
 
     def do(self):
         if self.operands[0].oplen == OpLen.WORD:
-            self.set_operand(0, self.cpu.stack_pop_word())
+            self.set_operand(0, self.cpu.stack.pop_word())
         else:
-            self.set_operand(0, self.cpu.stack_pop_byte())
+            self.set_operand(0, self.cpu.stack.pop_byte())
 
 
 class PUSHF(Instruction):
     '''Push FLAGS to stack'''
 
     def do(self):
-        self.cpu.stack_push_flags()
+        self.cpu.stack.push_flags()
 
 
 class POPF(Instruction):
     '''Pop FLAGS from stack'''
 
     def do(self):
-        self.cpu.stack_pop_flags()
+        self.cpu.stack.pop_flags()
 
 
 # I/O
@@ -80,7 +80,7 @@ class IN(Instruction):
             utils.binary_to_str(input_data),
             cx,
         )
-        self.cpu.set_register('CX', cx)
+        self.cpu.registers.set_register('CX', cx)
 
 
 class OUT(Instruction):
@@ -92,7 +92,7 @@ class OUT(Instruction):
     def do(self):
         ioport_number = self.get_operand(0)
         pos = self.get_operand(1)
-        cx = self.cpu.get_register('CX')
+        cx = self.cpu.registers.get_register('CX')
         output_data = self.cpu.device_controller.ioports[ioport_number].send_output(
             bytes([self.cpu.ram.read_byte(pos + idx) for idx in range(cx)])
         )

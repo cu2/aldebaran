@@ -158,7 +158,7 @@ class CALL(Instruction):
     oplens = ['W']
 
     def do(self):
-        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
+        self.cpu.stack.push_word(self.ip + self.opcode_length)  # IP of next instruction
         return self.get_operand(0)
 
 
@@ -169,9 +169,9 @@ class ENTER(Instruction):
     operand_count = 1
 
     def do(self):
-        self.cpu.stack_push_word(self.cpu.get_register('BP'))
-        self.cpu.set_register('BP', self.cpu.get_register('SP'))
-        self.cpu.set_register('SP', self.cpu.get_register('SP') - self.get_operand(0))
+        self.cpu.stack.push_word(self.cpu.registers.get_register('BP'))
+        self.cpu.registers.set_register('BP', self.cpu.registers.get_register('SP'))
+        self.cpu.registers.set_register('SP', self.cpu.registers.get_register('SP') - self.get_operand(0))
 
 
 class LEAVE(Instruction):
@@ -179,15 +179,15 @@ class LEAVE(Instruction):
     # TODO: upgrade
 
     def do(self):
-        self.cpu.set_register('SP', self.cpu.get_register('BP'))
-        self.cpu.set_register('BP', self.cpu.stack_pop_word())
+        self.cpu.registers.set_register('SP', self.cpu.registers.get_register('BP'))
+        self.cpu.registers.set_register('BP', self.cpu.stack.pop_word())
 
 
 class RET(Instruction):
     '''Return from subroutine'''
 
     def do(self):
-        return self.cpu.stack_pop_word()
+        return self.cpu.stack.pop_word()
 
 
 class RETPOP(Instruction):
@@ -197,8 +197,8 @@ class RETPOP(Instruction):
     operand_count = 1
 
     def do(self):
-        next_ip = self.cpu.stack_pop_word()
-        self.cpu.set_register('SP', self.cpu.get_register('SP') + self.get_operand(0))
+        next_ip = self.cpu.stack.pop_word()
+        self.cpu.registers.set_register('SP', self.cpu.registers.get_register('SP') + self.get_operand(0))
         return next_ip
 
 
@@ -211,8 +211,8 @@ class INT(Instruction):
     oplens = ['B']
 
     def do(self):
-        self.cpu.stack_push_flags()
-        self.cpu.stack_push_word(self.ip + self.opcode_length)  # IP of next instruction
+        self.cpu.stack.push_flags()
+        self.cpu.stack.push_word(self.ip + self.opcode_length)  # IP of next instruction
         interrupt_number = self.get_operand(0)
         return self.cpu.ram.read_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number)
 
@@ -221,8 +221,8 @@ class IRET(Instruction):
     '''Return from interrupt'''
 
     def do(self):
-        next_ip = self.cpu.stack_pop_word()
-        self.cpu.stack_pop_flags()
+        next_ip = self.cpu.stack.pop_word()
+        self.cpu.stack.pop_flags()
         return next_ip
 
 

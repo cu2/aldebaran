@@ -2,8 +2,13 @@
 Base class for instructions
 '''
 
-from .operands import parse_operand_buffer, get_operand_value, set_operand_value, OpLen
+import logging
+
 from utils import utils
+from .operands import parse_operand_buffer, get_operand_value, set_operand_value, OpLen
+
+
+logger = logging.getLogger('hardware.cpu')
 
 
 class Instruction:
@@ -25,7 +30,7 @@ class Instruction:
     def __init__(self, cpu, operand_buffer):
         self.cpu = cpu
         self.operands, self.opcode_length = parse_operand_buffer(operand_buffer, self.operand_count)
-        self.ip = self.cpu.registers['IP']
+        self.ip = self.cpu.ip
 
     def __repr__(self):
         return self.__class__.__name__
@@ -34,7 +39,9 @@ class Instruction:
         '''Run instruction'''
         next_ip = self.do()
         if next_ip is None:
-            return self.ip + self.opcode_length
+            next_ip = self.ip + self.opcode_length
+        else:
+            logger.debug('Jumped to %s', utils.word_to_str(next_ip))
         return next_ip
 
     def do(self):

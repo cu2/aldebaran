@@ -23,6 +23,7 @@ number_of_interrupts = 256
 IVT_size = number_of_interrupts * 2
 device_registry_size = number_of_ioports * 4
 number_of_subtimers = 16
+operand_buffer_size = 16
 timer_freq = 10  # Hz
 
 system_interrupts = {
@@ -33,7 +34,7 @@ system_interrupts = {
 }
 system_addresses = {
     'entry_point': 0x0000,
-    'SP': ram_size - IVT_size - device_registry_size - number_of_ioports - 1 - 1,
+    'bottom_of_stack': ram_size - IVT_size - device_registry_size - number_of_ioports - 1 - 1,
     'default_interrupt_handler': ram_size - IVT_size - device_registry_size - number_of_ioports - 1,
     'device_status_table': ram_size - IVT_size - device_registry_size - number_of_ioports,
     'device_registry_address': ram_size - IVT_size - device_registry_size,

@@ -56,11 +56,11 @@ class BootLoader:
         Load image into RAM at position `pos`
         '''
         for idx in range(image.size):
-            self._ram.write_byte(pos + idx, image.content[idx])
+            self._ram.write_byte(pos + idx, image.content[idx], silent=True)
 
     def load_executable(self, pos, exe):
         '''
         Load executable into RAM at position `pos`
         '''
         for idx, opbyte in enumerate(exe.opcode):
-            self._ram.write_byte(pos + idx, opbyte)
+            self._ram.write_byte(pos + idx, opbyte, silent=True)

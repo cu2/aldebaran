@@ -282,7 +282,7 @@ def get_operand_value(operand, cpu, ram, ip):
     if operand.optype == OpType.ADDRESS:
         return ip + operand.opvalue
     if operand.optype == OpType.REGISTER:
-        return cpu.get_register(operand.opreg)
+        return cpu.registers.get_register(operand.opreg)
 
     address = _get_reference_address(operand, cpu, ip)
     if operand.oplen == OpLen.BYTE:
@@ -302,7 +302,7 @@ def set_operand_value(operand, value, cpu, ram, ip):
     if operand.optype == OpType.ADDRESS:
         raise InvalidWriteOperationError('Cannot set address type operand.')
     if operand.optype == OpType.REGISTER:
-        cpu.set_register(operand.opreg, value)
+        cpu.registers.set_register(operand.opreg, value)
         return
 
     address = _get_reference_address(operand, cpu, ip)
@@ -314,13 +314,13 @@ def set_operand_value(operand, value, cpu, ram, ip):
 
 def _get_reference_address(operand, cpu, ip):
     if operand.optype == OpType.ABS_REF_REG:
-        return cpu.get_register(operand.opreg) + operand.opoffset
+        return cpu.registers.get_register(operand.opreg) + operand.opoffset
     if operand.optype == OpType.REL_REF_WORD:
         return ip + operand.opbase
     if operand.optype == OpType.REL_REF_WORD_BYTE:
         return ip + operand.opbase + operand.opoffset
     if operand.optype == OpType.REL_REF_WORD_REG:
-        return ip + operand.opbase + cpu.get_register(operand.opreg)
+        return ip + operand.opbase + cpu.registers.get_register(operand.opreg)
     raise InvalidOperandError('Cannot get reference address of {}'.format(operand))
 
 

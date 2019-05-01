@@ -13,7 +13,9 @@ from hardware import device_controller
 from hardware import interrupt_controller
 from hardware import timer
 from hardware.clock import Clock
-from hardware.cpu import CPU
+from hardware.cpu.cpu import CPU
+from hardware.cpu.stack import Stack
+from hardware.cpu.registers import Registers
 from hardware.ram import RAM
 from utils import boot
 from utils import config
@@ -59,7 +61,9 @@ def main():
         clock_freq = args.clock
         aldebaran = Aldebaran({
             'clock': Clock(clock_freq),
-            'cpu': CPU(config.system_addresses, config.system_interrupts, INSTRUCTION_SET),
+            'registers': Registers(config.system_addresses['bottom_of_stack']),
+            'stack': Stack(config.system_addresses['bottom_of_stack']),
+            'cpu': CPU(config.system_addresses, INSTRUCTION_SET, config.operand_buffer_size),
             'ram': RAM(config.ram_size),
             'interrupt_controller': interrupt_controller.InterruptController(),
             'device_controller': device_controller.DeviceController(
@@ -92,13 +96,22 @@ class Aldebaran:
 
     def __init__(self, components):
         self.clock = components['clock']
+        self.registers = components['registers']
+        self.stack = components['stack']
         self.cpu = components['cpu']
         self.ram = components['ram']
         self.interrupt_controller = components['interrupt_controller']
         self.device_controller = components['device_controller']
         self.timer = components['timer']
         # architecture:
-        self.cpu.register_architecture(self.ram, self.interrupt_controller, self.device_controller, self.timer)
+        self.cpu.register_architecture(
+            self.registers,
+            self.stack,
+            self.ram,
+            self.interrupt_controller,
+            self.device_controller,
+            self.timer,
+        )
         self.clock.register_architecture(self.cpu)
         self.device_controller.register_architecture(self.interrupt_controller, self.ram)
         self.timer.register_architecture(self.interrupt_controller)
@@ -166,10 +179,11 @@ class Aldebaran:
         '''
         logger_crash_dump.error('### CRASH DUMP ###')
         # ip
-        ip = self.cpu.registers['IP']
+        ip = self.cpu.ip
         logger_crash_dump.error('')
         logger_crash_dump.error('IP=%s', utils.word_to_str(ip))
         logger_crash_dump.error('Entry point=%s', utils.word_to_str(self.cpu.system_addresses['entry_point']))
+        logger_crash_dump.error('Halt=%s', self.cpu.halt)
         # ram
         ram_page_size = 16
         ram_page = (ip // ram_page_size) * ram_page_size
@@ -185,17 +199,17 @@ class Aldebaran:
                 '%s: %s',
                 utils.word_to_str(offset + ram_page),
                 ''.join([
-                    ('>' if idx == ip else ' ') + utils.byte_to_str(self.ram.read_byte(idx))
+                    ('>' if idx == ip else ' ') + utils.byte_to_str(self.ram.read_byte(idx, silent=True))
                     for idx in range(offset + ram_page, offset + ram_page + ram_page_size)
                 ]),
             )
         # stack
-        sp = self.cpu.registers['SP']
-        bp = self.cpu.registers['BP']
+        sp = self.cpu.registers.get_register('SP', silent=True)
+        bp = self.cpu.registers.get_register('BP', silent=True)
         logger_crash_dump.error('')
         logger_crash_dump.error('SP=%s', utils.word_to_str(sp))
         logger_crash_dump.error('BP=%s', utils.word_to_str(bp))
-        logger_crash_dump.error('Bottom of stack=%s', utils.word_to_str(self.cpu.system_addresses['SP']))
+        logger_crash_dump.error('Bottom of stack=%s', utils.word_to_str(self.cpu.system_addresses['bottom_of_stack']))
         logger_crash_dump.error('')
         logger_crash_dump.error('Stack:')
         stack_page_size = 16
@@ -211,7 +225,7 @@ class Aldebaran:
             logger_crash_dump.error(
                 '%s:  %s',
                 utils.word_to_str(offset + stack_page),
-                ''.join([utils.byte_to_str(self.ram.read_byte(idx)) + (
+                ''.join([utils.byte_to_str(self.ram.read_byte(idx, silent=True)) + (
                     (
                         '{' if idx == bp else '<'
                     ) if idx == sp else (
@@ -223,22 +237,24 @@ class Aldebaran:
         logger_crash_dump.error('')
         logger_crash_dump.error('Registers:')
         for reg in ['AX', 'BX', 'CX', 'DX', 'SI', 'DI']:
-            logger_crash_dump.error('%s=%s', reg, utils.word_to_str(self.cpu.registers[reg]))
+            logger_crash_dump.error('%s=%s', reg, utils.word_to_str(self.cpu.registers.get_register(reg, silent=True)))
 
 
 def _set_logging(verbosity):
     levels = {
-        'ald': 'IIDDD',
-        'usr': 'IIDDD',
-        'clk': 'EIIID',  # clock signals only at -vvvv
-        'cpu': 'EIDDD',
-        'ram': 'EIIII',  # DEBUG is basically uselessly verbose
-        'tim': 'EIIDD',  # timer beats from -vvv
-        'ict': 'EIDDD',
-        'dct': 'EIDDD',
+        'ald': 'IIDDDD',
+        'usr': 'IIDDDD',
+        'clk': 'EIIIID',  # clock signals only at -vvvvv
+        'cpu': 'EIDDDD',
+        'reg': 'EIIDDD',  # get/set registers from -vvv
+        'stk': 'EIIDDD',  # push/pop from -vvv
+        'ram': 'EIIDDD',  # read/write from -vvv
+        'tim': 'EIIIDD',  # timer beats from -vvvv
+        'ict': 'EIDDDD',
+        'dct': 'EIDDDD',
     }
-    if verbosity > 4:
-        verbosity = 4
+    if verbosity > 5:
+        verbosity = 5
     utils.config_loggers({
         '__main__': {
             'name': 'Aldebaran',
@@ -262,7 +278,17 @@ def _set_logging(verbosity):
         'hardware.cpu-user': {
             'name': '',
             'level': levels['usr'][verbosity],
-            'color': '37;1',
+            'color': '1;37',
+        },
+        'hardware.cpu.registers': {
+            'name': 'CPU',
+            'level': levels['reg'][verbosity],
+            'color': '1;32',
+        },
+        'hardware.cpu.stack': {
+            'name': 'CPU',
+            'level': levels['stk'][verbosity],
+            'color': '1;32',
         },
         'hardware.ram': {
             'name': 'RAM',
