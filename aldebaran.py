@@ -122,7 +122,7 @@ class Aldebaran:
             self.timer,
         )
         self.clock.register_architecture(self.cpu)
-        self.device_controller.register_architecture(self.interrupt_controller, self.ram)
+        self.device_controller.register_architecture(self.interrupt_controller)
         self.timer.register_architecture(self.interrupt_controller)
         self.memory.register_architecture(self.ram, self.virtual_ram)
         self.virtual_ram.register_architecture(self.device_controller)

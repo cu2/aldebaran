@@ -26,27 +26,25 @@ class DeviceController:
     '''
 
     def __init__(self, host, port, system_addresses, system_interrupts, ioports):
-        self.address = (host, port)
         self.system_addresses = system_addresses
-        self.device_registry = [0] * system_addresses['device_registry_size']
-        self.device_status_table = [0] * system_addresses['device_status_table_size']
-        self.ioports = ioports
         self.system_interrupts = system_interrupts
+        self._device_registry = [0] * system_addresses['device_registry_size']
+        self._device_status_table = [0] * system_addresses['device_status_table_size']
         self.output_queue = queue.Queue()
         self._stop_event = threading.Event()
-        self._server = Server(self.address, RequestHandler, self)
+        self._server = Server((host, port), RequestHandler, self)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_thread = threading.Thread(target=self._output_thread_run)
+
+        self.ioports = ioports
         self.interrupt_controller = None
-        self.ram = None
         self.architecture_registered = False
 
-    def register_architecture(self, interrupt_controller, ram):
+    def register_architecture(self, interrupt_controller):
         '''
         Register other internal devices
         '''
         self.interrupt_controller = interrupt_controller
-        self.ram = ram
         for ioport in self.ioports:
             ioport.register_architecture(self)
         self.architecture_registered = True
@@ -75,10 +73,13 @@ class DeviceController:
         logger.info('Stopped.')
 
     def read_byte(self, pos, silent=False):
+        '''
+        Read byte from device registry or device status table
+        '''
         if self.system_addresses['device_registry_address'] <= pos < self.system_addresses['device_registry_address'] + self.system_addresses['device_registry_size']:
-            value = self.device_registry[pos - self.system_addresses['device_registry_address']]
+            value = self._device_registry[pos - self.system_addresses['device_registry_address']]
         elif self.system_addresses['device_status_table_address'] <= pos < self.system_addresses['device_status_table_address'] + self.system_addresses['device_status_table_size']:
-            value = self.device_status_table[pos - self.system_addresses['device_status_table_address']]
+            value = self._device_status_table[pos - self.system_addresses['device_status_table_address']]
         else:
             raise SegfaultError('Segmentation fault when trying to read byte at {}'.format(utils.word_to_str(pos)))
         if not silent:
@@ -86,15 +87,21 @@ class DeviceController:
         return value
 
     def write_byte(self, pos, value, silent=False):
+        '''
+        Cannot write to device registry device status table
+        '''
         raise SegfaultError('Segmentation fault when trying to write byte at {}'.format(utils.word_to_str(pos)))
 
     def read_word(self, pos, silent=False):
+        '''
+        Read word from device registry or device status table
+        '''
         if self.system_addresses['device_registry_address'] <= pos < self.system_addresses['device_registry_address'] + self.system_addresses['device_registry_size'] - 1:
             relative_pos = pos - self.system_addresses['device_registry_address']
-            value = (self.device_registry[relative_pos] << 8) + self.device_registry[relative_pos + 1]
+            value = (self._device_registry[relative_pos] << 8) + self._device_registry[relative_pos + 1]
         elif self.system_addresses['device_status_table_address'] <= pos < self.system_addresses['device_status_table_address'] + self.system_addresses['device_status_table_size'] - 1:
             relative_pos = pos - self.system_addresses['device_status_table_address']
-            value = (self.device_registry[relative_pos] << 8) + self.device_registry[relative_pos + 1]
+            value = (self._device_status_table[relative_pos] << 8) + self._device_status_table[relative_pos + 1]
         else:
             raise SegfaultError('Segmentation fault when trying to read word at {}'.format(utils.word_to_str(pos)))
         if not silent:
@@ -102,6 +109,9 @@ class DeviceController:
         return value
 
     def write_word(self, pos, value, silent=False):
+        '''
+        Cannot write to device registry device status table
+        '''
         raise SegfaultError('Segmentation fault when trying to write word at {}'.format(utils.word_to_str(pos)))
 
     def _output_thread_run(self):
@@ -127,10 +137,12 @@ class DeviceController:
             except Exception as e:
                 logger.debug('Error sending query: %s', e)
             if query == 'data':
-                self.ram.write_word(self.device_status_table + ioport_number, output_status)
                 self.interrupt_controller.send(self.system_interrupts['ioport_out'][ioport_number])
 
     def handle_input(self, ioport_number, command, data):
+        '''
+        Handle request from device
+        '''
         logger.debug('Incoming command "%s" to IOPort %s', command, ioport_number)
         if command == 'register':
             return self._register_device(ioport_number, data)
@@ -233,10 +245,10 @@ class DeviceController:
             ' '.join(utils.byte_to_str(device_id[i]) for i in range(3)),
         )
         logger.info('Device host and port: %s:%s', device_host, device_port)
-        self.device_registry[4 * ioport_number] = device_type
+        self._device_registry[4 * ioport_number] = device_type
         for idx in range(3):
-            self.device_registry[4 * ioport_number + 1 + idx] = device_id[idx]
-        self.device_status_table[ioport_number] = 0
+            self._device_registry[4 * ioport_number + 1 + idx] = device_id[idx]
+        self._device_status_table[ioport_number] = 0
         self.ioports[ioport_number].register_device(device_host, device_port)
         self.interrupt_controller.send(self.system_interrupts['device_registered'])
         logger.info('Device registered to IOPort %s.', ioport_number)
@@ -259,8 +271,8 @@ class DeviceController:
 
         logger.info('Unregistering device from IOPort %s...', ioport_number)
         for idx in range(4):
-            self.device_registry[4 * ioport_number + idx] = 0
-        self.device_status_table[ioport_number] = 0
+            self._device_registry[4 * ioport_number + idx] = 0
+        self._device_status_table[ioport_number] = 0
         self.ioports[ioport_number].unregister_device()
         self.interrupt_controller.send(self.system_interrupts['device_unregistered'])
         logger.info('Device unregistered from IOPort %s.', ioport_number)
