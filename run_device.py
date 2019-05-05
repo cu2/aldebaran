@@ -1,9 +1,14 @@
+'''
+Device runner script
+'''
+
 import argparse
 import importlib
 import logging
-import sys
 
+from utils import config
 from utils import utils
+from devices.device import DeviceError
 
 
 logger = logging.getLogger(__name__)
@@ -34,28 +39,41 @@ def main():
     device_name = args.device_name
     ioport_number = args.ioport_number
     device_args = []  # TODO: ???
+    module_name = 'devices.{device_name}.{device_name}'.format(device_name=device_name)
+    aldebaran_address = config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port
+    device_address = config.device_host, config.device_base_port + ioport_number
     try:
-        device_module = importlib.import_module('devices.%s' % device_name)
+        device_module = importlib.import_module(module_name)
     except ImportError:
         logger.error('Could not import %s', device_name)
-        return 1
+        return
     device = getattr(device_module, device_module.DEVICE_CLASS)(
         ioport_number=ioport_number,
         device_descriptor=(device_module.DEVICE_TYPE, device_module.DEVICE_ID),
+        aldebaran_address=aldebaran_address,
+        device_address=device_address,
     )
-    retval = device.start()
-    if retval != 0:
-        logger.error('Could not start device')
-        return retval
-    retval = device.register()
-    if retval != 0:
-        logger.error('Could not register device')
-        return retval
-    retval = device.run(device_args)
-    retval = device.unregister()
-    if retval != 0:
-        return retval
-    return 0
+    device.start()
+
+    try:
+        device.register()
+    except DeviceError as ex:
+        device.stop()
+        logger.error(ex)
+        return
+    except (KeyboardInterrupt, SystemExit):
+        device.stop()
+        return
+
+    try:
+        device.run(device_args)
+    except DeviceError as ex:
+        logger.error(ex)
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        device.unregister()
+        device.stop()
 
 
 def _set_logging(verbosity):
