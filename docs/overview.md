@@ -13,9 +13,17 @@
 The clock sends the CPU a signal every `1/clock_freq` seconds. If it takes more time for the CPU to execute the instruction at hand, the clock will wait and send the next signal as soon as possible. So the effective clock frequency (printed after Aldebaran shuts down) is typically smaller than the theoretical. If `clock_freq` is zero ("TURBO" mode), the clock sends signals as fast as possible.
 
 
-### RAM
+### Memory
 
-A simple RAM module with 65536 bytes of storage. Capable of reading and writing bytes or words. The stack is stored in the RAM but it's implemented by the CPU.
+The Memory consists of RAM and Virtual RAM. The address space is 65536 bytes (16-bit flat), the lower 61440 bytes (0x0000-0xEFFF) map to the RAM, the upper 4096 bytes (0xF000-0xFFFF) to the Virtual RAM. The Memory is capable of reading and writing bytes or words. Trying to read/write a word on the boundary of RAM and Virtual RAM leads to segfault. The stack is stored in the RAM but it's implemented by the CPU.
+
+The Virtual RAM maps special storages of internal devices to the address space:
+
+- 0xF000-0xF03F: Device Controller / Device Registry (64 bytes)
+- 0xF040-0xF04F: Device Controller / Device Status Table (16 bytes)
+- 0xF050-0xFFFF: currently unmapped (4016 bytes)
+
+Trying to read/write from/to unmapped addresses in the Virtual RAM leads to segfault.
 
 
 ### CPU
@@ -49,12 +57,10 @@ Software interrupts are called by the CPU directly with the `INT` instruction.
 
 The Device Controller contains 16 IOPorts each capable of communicating with a separate device (via HTTP). The Device Controller handles the slow "physical" (i.e. network) connection to the devices. The IOPorts work fast: they respond to requests from the CPU (`IN` and `OUT` instructions) immediately.
 
-When a new device is connected, first it's registered with an IOPort and into the so called Device Registry. The Device Registry is a part of the RAM. For each IOPort it has 4 bytes:
+When a new device is connected, first it's registered with an IOPort and into the so called Device Registry. The Device Registry can be read via the Virtual RAM. For each IOPort it has 4 bytes:
 
 - 1 byte Device Type (00 if no device is registered)
 - 3 bytes Device ID (000000 if no device is registered)
-
-Another part of the RAM is the Device Status Table. For each IOPort it has 1 byte that is the status of the last `OUT` instruction. 0 if it was successful, 1 otherwise.
 
 
 ### Timer

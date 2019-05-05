@@ -58,28 +58,21 @@ Which could be disassembled like this:
 
 ### Input scenario
 
-1. Device sends signal to Device Controller
-2. Device Controller forwards it to the targeted IOPort
-3. IOPort stores the data in its input buffer and calls an `ioport_in` interrupt
-4. CPU calls the specified interrupt handler routine
-5. The routine uses the `IN` instruction to read the content of the input buffer into RAM
-6. IOPort asks Device Controller to send an `ACK` signal to the device
-7. Device Controller sends an `ACK` signal to the device
+1. Device sends data to Device Controller
+2. Device Controller puts it into the targeted IOPort's input queue and calls an `ioport_in` interrupt
+3. CPU calls the specified interrupt handler routine
+4. The routine uses the `IN` instruction to read an item from the input queue into RAM
 
 ### Output scenario
 
 1. The `OUT` instruction sends a piece of RAM to an IOPort
 2. IOPort asks Device Controller to send the data to the device
 3. Device Controller sends the data to the device
-4. Device Controller puts the status of the device into RAM and calls an `ioport_out` interrupt
-5. CPU calls the specified interrupt handler routine
-6. The routine checks the Device Status Table in RAM to see the device's status
 
 ### Registering/unregistering devices
 
-1. Device sends signal to Device Controller
+1. Device sends register/unregister command to Device Controller
 2. Device Controller registers/unregisters the device with the specified IOPort
-3. Device Controller registers/unregisters the device into the Device Registry in RAM
+3. Device Controller registers/unregisters the device into the Device Registry
 4. Device Controller calls the `device_registered` or `device_unregistered` interrupt
 5. CPU calls the specified interrupt handler routine
-6. Device Controller responds to the device
