@@ -55,7 +55,7 @@ def main():
     try:
         boot_file = args.file
         ioports = [
-            IOPort(ioport_number)
+            IOPort(ioport_number, config.input_buffer_size)
             for ioport_number in range(config.number_of_ioports)
         ]
         clock_freq = args.clock

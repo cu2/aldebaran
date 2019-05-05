@@ -2,7 +2,6 @@
 Device Controller to handle devices
 '''
 
-import base64
 import json
 import logging
 import queue
@@ -156,28 +155,41 @@ class DeviceController:
                 }
             )
         if command == 'data':
-            if not self.ioports[ioport_number].registered:
-                logger.info('No device is registered to IOPort %s.', ioport_number)
-                return (
-                    HTTPStatus.FORBIDDEN,
-                    {
-                        'error': 'No device is registered to this IOPort.',
-                    }
-                )
-            # TODO: ???
-            return (
-                HTTPStatus.OK,
-                {
-                    'message': 'Received data: {}'.format(base64.b64encode(data).decode('ascii')),
-                }
-            )
+            return self._send_data_to_ioport(ioport_number, data)
         return (
             HTTPStatus.BAD_REQUEST,
             {
                 'error': 'Unknown command: {}'.format(command),
             }
         )
-        # self.send_header('Content-Type', 'application/octet-stream')
+
+    def _send_data_to_ioport(self, ioport_number, data):
+        if not self.ioports[ioport_number].registered:
+            logger.info('No device is registered to IOPort %s.', ioport_number)
+            return (
+                HTTPStatus.FORBIDDEN,
+                {
+                    'error': 'No device is registered to this IOPort.',
+                }
+            )
+        if len(data) > self.ioports[ioport_number].input_buffer_size:
+            logger.info('Too much data sent to IOPort %s.', ioport_number)
+            return (
+                HTTPStatus.FORBIDDEN,
+                {
+                    'error': 'Too much data sent.',
+                }
+            )
+
+        self.ioports[ioport_number].input_queue.put(data)
+        logger.info('Delivered data to IOPort %s.', ioport_number)
+        self.interrupt_controller.send(self.system_interrupts['ioport_in'][ioport_number])
+        return (
+            HTTPStatus.OK,
+            {
+                'message': 'Received data: {}'.format(utils.binary_to_str(data)),
+            }
+        )
 
     def _register_device(self, ioport_number, data):
         try:

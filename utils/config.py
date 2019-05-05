@@ -19,6 +19,7 @@ device_base_port = 35016
 
 memory_size = 0x10000  # 65536
 ram_size = 0xF000  # 61440
+input_buffer_size = 0x100  # 256
 
 number_of_ioports = 16
 number_of_interrupts = 256
