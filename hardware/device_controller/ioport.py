@@ -43,10 +43,10 @@ class IOPort:
         '''
         Unregister device from IOPort
         '''
+        self._log_info('Device[%s:%s] unregistered.', self.device_host, self.device_port)  # log before emptying values
         self.device_host = None
         self.device_port = None
         self.registered = False
-        self._log_info('Device[%s:%s] unregistered.', self.device_host, self.device_port)
 
     def read_input(self):
         '''

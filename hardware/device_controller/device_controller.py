@@ -50,7 +50,7 @@ class DeviceController:
 
     def start(self):
         '''
-        Start server and output threads
+        Start input and output threads
         '''
         if not self.architecture_registered:
             raise ArchitectureError('Device Controller cannot run without registering architecture')
@@ -61,7 +61,7 @@ class DeviceController:
 
     def stop(self):
         '''
-        Stop server and output threads
+        Stop input and output threads
         '''
         logger.info('Stopping...')
         self._server.shutdown()
