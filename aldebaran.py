@@ -9,14 +9,14 @@ import time
 import logging
 
 from instructions.instruction_set import INSTRUCTION_SET
-from hardware import device_controller
-from hardware import interrupt_controller
-from hardware import timer
-from hardware.clock import Clock
-from hardware.cpu.cpu import CPU
-from hardware.cpu.stack import Stack
-from hardware.cpu.registers import Registers
-from hardware.ram import RAM
+from hardware import (
+    Clock,
+    Registers, Stack, CPU,
+    Memory, RAM, VirtualRAM,
+    InterruptController,
+    IOPort, DeviceController,
+    Timer,
+)
 from utils import boot
 from utils import config
 from utils import utils
@@ -55,7 +55,7 @@ def main():
     try:
         boot_file = args.file
         ioports = [
-            device_controller.IOPort(ioport_number)
+            IOPort(ioport_number)
             for ioport_number in range(config.number_of_ioports)
         ]
         clock_freq = args.clock
@@ -63,15 +63,22 @@ def main():
             'clock': Clock(clock_freq),
             'registers': Registers(config.system_addresses['bottom_of_stack']),
             'stack': Stack(config.system_addresses['bottom_of_stack']),
-            'cpu': CPU(config.system_addresses, INSTRUCTION_SET, config.operand_buffer_size),
+            'cpu': CPU(config.system_addresses, INSTRUCTION_SET, config.operand_buffer_size, config.cpu_halt_freq),
+            'memory': Memory(config.ram_size),
             'ram': RAM(config.ram_size),
-            'interrupt_controller': interrupt_controller.InterruptController(),
-            'device_controller': device_controller.DeviceController(
+            'virtual_ram': VirtualRAM({
+                'device_controller': {
+                    'first': config.device_registry_address,
+                    'last': config.device_status_table_address + config.device_status_table_size,
+                },
+            }),
+            'interrupt_controller': InterruptController(),
+            'device_controller': DeviceController(
                 config.aldebaran_host, config.aldebaran_base_port + config.device_controller_port,
                 config.system_addresses, config.system_interrupts,
                 ioports,
             ),
-            'timer': timer.Timer(config.timer_freq, config.number_of_subtimers),
+            'timer': Timer(config.timer_freq, config.number_of_subtimers),
         })
         aldebaran.boot(boot_file)
     except AldebaranError as ex:
@@ -99,7 +106,9 @@ class Aldebaran:
         self.registers = components['registers']
         self.stack = components['stack']
         self.cpu = components['cpu']
+        self.memory = components['memory']
         self.ram = components['ram']
+        self.virtual_ram = components['virtual_ram']
         self.interrupt_controller = components['interrupt_controller']
         self.device_controller = components['device_controller']
         self.timer = components['timer']
@@ -107,7 +116,7 @@ class Aldebaran:
         self.cpu.register_architecture(
             self.registers,
             self.stack,
-            self.ram,
+            self.memory,
             self.interrupt_controller,
             self.device_controller,
             self.timer,
@@ -115,6 +124,8 @@ class Aldebaran:
         self.clock.register_architecture(self.cpu)
         self.device_controller.register_architecture(self.interrupt_controller, self.ram)
         self.timer.register_architecture(self.interrupt_controller)
+        self.memory.register_architecture(self.ram, self.virtual_ram)
+        self.virtual_ram.register_architecture(self.device_controller)
 
     def boot(self, boot_file):
         '''
@@ -136,9 +147,7 @@ class Aldebaran:
         Start device controller, timer and clock
         '''
         logger.info('Started.')
-        retval = self.device_controller.start()
-        if retval != 0:
-            raise AldebaranError('Could not start Device Controller')
+        self.device_controller.start()
         self.timer.start()
         start_time = time.time()
         try:
@@ -290,8 +299,18 @@ def _set_logging(verbosity):
             'level': levels['stk'][verbosity],
             'color': '1;32',
         },
-        'hardware.ram': {
+        'hardware.memory': {
+            'name': 'Memory',
+            'level': levels['ram'][verbosity],
+            'color': '0;34',
+        },
+        'hardware.memory.ram': {
             'name': 'RAM',
+            'level': levels['ram'][verbosity],
+            'color': '0;34',
+        },
+        'hardware.memory.virtual_ram': {
+            'name': 'VirtualRAM',
             'level': levels['ram'][verbosity],
             'color': '0;34',
         },

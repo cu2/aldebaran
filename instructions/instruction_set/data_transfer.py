@@ -73,7 +73,7 @@ class IN(Instruction):
         input_data = self.cpu.device_controller.ioports[ioport_number].read_input()
         cx = len(input_data)
         for idx, value in enumerate(input_data):
-            self.cpu.ram.write_byte(pos + idx, value)
+            self.cpu.memory.write_byte(pos + idx, value)
         self.cpu.cpu_log(
             'Input data from IOPort %s: %s (%d bytes)',
             ioport_number,
@@ -94,7 +94,7 @@ class OUT(Instruction):
         pos = self.get_operand(1)
         cx = self.cpu.registers.get_register('CX')
         output_data = self.cpu.device_controller.ioports[ioport_number].send_output(
-            bytes([self.cpu.ram.read_byte(pos + idx) for idx in range(cx)])
+            bytes([self.cpu.memory.read_byte(pos + idx) for idx in range(cx)])
         )
         self.cpu.cpu_log(
             'Output data to IOPort %s: %s (%d bytes)',

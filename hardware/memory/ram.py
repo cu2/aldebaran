@@ -5,10 +5,10 @@ RAM to store data
 import logging
 
 from utils import utils
-from utils.errors import AldebaranError
+from .memory import SegfaultError
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('hardware.memory.ram')
 
 
 class RAM:
@@ -63,13 +63,3 @@ class RAM:
         self._content[pos + 1] = utils.get_low(value)
         if not silent:
             logger.debug('Written word %s to %s.', utils.word_to_str(value), utils.word_to_str(pos))
-
-
-# pylint: disable=missing-docstring
-
-class RAMError(AldebaranError):
-    pass
-
-
-class SegfaultError(RAMError):
-    pass

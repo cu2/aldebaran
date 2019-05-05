@@ -57,21 +57,21 @@ class Instruction:
         Return value of operand
         '''
         operand = self.operands[opnum]
-        return get_operand_value(operand, self.cpu, self.cpu.ram, self.ip)
+        return get_operand_value(operand, self.cpu, self.cpu.memory, self.ip)
 
     def set_operand(self, opnum, value):
         '''
         Set value of operand
         '''
         operand = self.operands[opnum]
-        set_operand_value(operand, value, self.cpu, self.cpu.ram, self.ip)
+        set_operand_value(operand, value, self.cpu, self.cpu.memory, self.ip)
 
     def get_signed_operand(self, opnum):
         '''
         Return value of operand as signed number
         '''
         operand = self.operands[opnum]
-        raw_value = get_operand_value(operand, self.cpu, self.cpu.ram, self.ip)
+        raw_value = get_operand_value(operand, self.cpu, self.cpu.memory, self.ip)
         if operand.oplen == OpLen.BYTE:
             binary_value = utils.byte_to_binary(raw_value)
         else:
@@ -87,4 +87,4 @@ class Instruction:
             binary_value = utils.byte_to_binary(value, signed=True)
         else:
             binary_value = utils.word_to_binary(value, signed=True)
-        set_operand_value(operand, utils.binary_to_number(binary_value), self.cpu, self.cpu.ram, self.ip)
+        set_operand_value(operand, utils.binary_to_number(binary_value), self.cpu, self.cpu.memory, self.ip)

@@ -271,7 +271,7 @@ def operand_to_str(operand):
     )
 
 
-def get_operand_value(operand, cpu, ram, ip):
+def get_operand_value(operand, cpu, memory, ip):
     '''
     Get operand value (as unsigned) when executing an instruction
     '''
@@ -286,12 +286,12 @@ def get_operand_value(operand, cpu, ram, ip):
 
     address = _get_reference_address(operand, cpu, ip)
     if operand.oplen == OpLen.BYTE:
-        return ram.read_byte(address)
+        return memory.read_byte(address)
     else:
-        return ram.read_word(address)
+        return memory.read_word(address)
 
 
-def set_operand_value(operand, value, cpu, ram, ip):
+def set_operand_value(operand, value, cpu, memory, ip):
     '''
     Set operand value (as unsigned) when executing an instruction
     '''
@@ -307,9 +307,9 @@ def set_operand_value(operand, value, cpu, ram, ip):
 
     address = _get_reference_address(operand, cpu, ip)
     if operand.oplen == OpLen.BYTE:
-        ram.write_byte(address, value)
+        memory.write_byte(address, value)
     else:
-        ram.write_word(address, value)
+        memory.write_word(address, value)
 
 
 def _get_reference_address(operand, cpu, ip):

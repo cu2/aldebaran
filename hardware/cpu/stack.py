@@ -20,12 +20,12 @@ class Stack:
         self._ram = None
         self.architecture_registered = False
 
-    def register_architecture(self, registers, ram):
+    def register_architecture(self, registers, memory):
         '''
         Register other internal devices
         '''
         self._registers = registers
-        self._ram = ram
+        self._ram = memory
         self.architecture_registered = True
 
     def push_byte(self, value):

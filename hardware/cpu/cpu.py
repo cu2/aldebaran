@@ -3,6 +3,7 @@ CPU
 '''
 
 import logging
+import time
 
 from instructions import operands
 from utils import utils
@@ -18,7 +19,7 @@ class CPU:
     CPU
     '''
 
-    def __init__(self, system_addresses, instruction_set, operand_buffer_size):
+    def __init__(self, system_addresses, instruction_set, operand_buffer_size, halt_freq):
         self.system_addresses = system_addresses
         self.instruction_opcode_mapping = {
             opcode: inst
@@ -26,25 +27,26 @@ class CPU:
         }
         self.ip = self.system_addresses['entry_point']
         self.operand_buffer_size = operand_buffer_size
+        self.halt_freq = halt_freq
         self.halt = False
         self.shutdown = False
 
         self.registers = None
         self.stack = None
-        self.ram = None
+        self.memory = None
         self.interrupt_controller = None
         self.device_controller = None
         self.timer = None
         self.architecture_registered = False
 
-    def register_architecture(self, registers, stack, ram, interrupt_controller, device_controller, timer):
+    def register_architecture(self, registers, stack, memory, interrupt_controller, device_controller, timer):
         '''
         Register other internal devices
         '''
         self.registers = registers
         self.stack = stack
-        self.stack.register_architecture(registers, ram)
-        self.ram = ram
+        self.stack.register_architecture(registers, memory)
+        self.memory = memory
         self.interrupt_controller = interrupt_controller
         self.device_controller = device_controller
         self.timer = timer
@@ -60,11 +62,12 @@ class CPU:
         if self._check_hardware_interrupts():
             return
         if self.halt:
+            time.sleep(1 / self.halt_freq)  # so it doesn't burn the host machine's CPU in turbo mode
             return
         self._mini_debugger()
-        inst_opcode = self.ram.read_byte(self.ip, silent=True)
+        inst_opcode = self.memory.read_byte(self.ip, silent=True)
         operand_buffer = [
-            self.ram.read_byte(self.ip + idx, silent=True)
+            self.memory.read_byte(self.ip + idx, silent=True)
             for idx in range(1, self.operand_buffer_size + 1)
         ]
         instruction = self._parse_instruction(inst_opcode, operand_buffer)
@@ -124,7 +127,7 @@ class CPU:
         self.stack.push_flags()
         self.disable_interrupts()
         self.stack.push_word(self.ip)
-        self.ip = self.ram.read_word(self.system_addresses['IVT'] + 2 * interrupt_number)
+        self.ip = self.memory.read_word(self.system_addresses['IVT'] + 2 * interrupt_number)
 
     def _mini_debugger(self):
         if logger.level != logging.DEBUG:
@@ -144,7 +147,7 @@ class CPU:
             utils.word_to_str(ram_page),
             utils.word_to_str(ram_page + ram_page_size - 1),
             ''.join([
-                ('>' if idx == self.ip else ' ') + utils.byte_to_str(self.ram.read_byte(idx, silent=True))
+                ('>' if idx == self.ip else ' ') + utils.byte_to_str(self.memory.read_byte(idx, silent=True))
                 for idx in range(ram_page, ram_page + ram_page_size)
             ]),
         )
@@ -154,7 +157,7 @@ class CPU:
             utils.word_to_str(bp),
             utils.word_to_str(stack_page),
             utils.word_to_str(stack_page + stack_page_size - 1),
-            ''.join([utils.byte_to_str(self.ram.read_byte(idx, silent=True)) + (
+            ''.join([utils.byte_to_str(self.memory.read_byte(idx, silent=True)) + (
                 (
                     '{' if idx == bp else '<'
                 ) if idx == sp else (

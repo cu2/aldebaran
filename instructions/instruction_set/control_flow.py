@@ -214,7 +214,7 @@ class INT(Instruction):
         self.cpu.stack.push_flags()
         self.cpu.stack.push_word(self.ip + self.opcode_length)  # IP of next instruction
         interrupt_number = self.get_operand(0)
-        return self.cpu.ram.read_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number)
+        return self.cpu.memory.read_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number)
 
 
 class IRET(Instruction):
@@ -234,7 +234,7 @@ class SETINT(Instruction):
 
     def do(self):
         interrupt_number = self.get_operand(0)
-        self.cpu.ram.write_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number, self.get_operand(1))
+        self.cpu.memory.write_word(self.cpu.system_addresses['IVT'] + 2 * interrupt_number, self.get_operand(1))
 
 
 class STI(Instruction):
