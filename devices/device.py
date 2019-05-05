@@ -5,6 +5,7 @@ Device class
 import json
 import logging
 import threading
+from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
@@ -70,7 +71,7 @@ class Device:
         }))
         if response.status_code != 200:
             raise RegistrationError('Could not register: {}'.format(response.text))
-        logger.debug('[ALD] %s', response.json()['message'])
+        logger.debug('[Aldebaran] %s', response.json()['message'])
         logger.info('Registered.')
         return 0
 
@@ -82,7 +83,7 @@ class Device:
         response = self._send_request('unregister')
         if response.status_code != 200:
             raise RegistrationError('Could not unregister: {}'.format(response.text))
-        logger.debug('[ALD] %s', response.json()['message'])
+        logger.debug('[Aldebaran] %s', response.json()['message'])
         logger.info('Unregistered.')
         return 0
 
@@ -94,7 +95,7 @@ class Device:
         response = self._send_request('data', data=data)
         if response.status_code != 200:
             raise RegistrationError('Could not send data: {}'.format(response.text))
-        logger.debug('[ALD] %s', response.json()['message'])
+        logger.debug('[Aldebaran] %s', response.json()['message'])
         logger.debug('Data sent.')
         return 0
 
@@ -108,10 +109,22 @@ class Device:
         '''
         Handle request from Aldebaran
         '''
+        logger.debug('Incoming command: %s', command)
+        if command == 'ping':
+            return (
+                HTTPStatus.OK,
+                {
+                    'message': 'pong',
+                }
+            )
         if command == 'data':
             return self.handle_data(data)
-        logger.debug('ERROR: unknown command %s.', command)
-        return 400, 'Unknown command\n'
+        return (
+            HTTPStatus.BAD_REQUEST,
+            {
+                'error': 'Unknown command: {}'.format(command),
+            }
+        )
 
     def handle_data(self, data):
         '''
@@ -150,40 +163,32 @@ class RequestHandler(BaseHTTPRequestHandler):
     Device's request handler
     '''
 
-    def _writeline(self, text):
-        self.wfile.write(text.encode('utf-8'))
-        self.wfile.write('\n'.encode('utf-8'))
-
     def do_POST(self):
         '''
         Handle incoming request from Aldebaran
         '''
         command = self.path.lstrip('/')
-        logger.debug('Req: %s', command)
         try:
-            request_body_length = int(self.headers.get('content-length'))
+            request_body_length = int(self.headers.get('Content-Length'))
         except TypeError:
-            self.send_response(411)  # Length Required
-            self.end_headers()
-            self._writeline('ERROR: Header "content-length" missing.')
+            self._send_json(HTTPStatus.LENGTH_REQUIRED)
             return
-        try:
-            request_body = self.rfile.read(request_body_length)
-        except Exception:
-            self.send_response(400)  # Bad Request
-            self.end_headers()
-            self._writeline('ERROR: Cannot parse request.')
-            return
-        logger.debug('Request(%d): %s', request_body_length, request_body)
-        response_code, response_text = self.server.device.handle_input(command, request_body)
-        self.send_response(response_code)
-        self.end_headers()
-        self.wfile.write(response_text.encode('utf-8'))
+        data = self.rfile.read(request_body_length)
+        status, json_response = self.server.device.handle_input(command, data)
+        self._send_json(status, json_response)
 
     def log_message(self, format, *args):
         '''
         Turn off logging of BaseHTTPRequestHandler
         '''
+
+    def _send_json(self, status, json_response=None):
+        self.send_response(status.value)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        if json_response is not None:
+            self.wfile.write(json.dumps(json_response).encode('utf-8'))
+            self.wfile.write(b'\n')
 
 
 class Server(HTTPServer):

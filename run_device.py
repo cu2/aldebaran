@@ -72,7 +72,10 @@ def main():
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:
-        device.unregister()
+        try:
+            device.unregister()
+        except DeviceError as ex:
+            logger.error(ex)
         device.stop()
 
 

@@ -58,17 +58,25 @@ class IOPort:
             self._log_info('Reading input from empty buffer.')
             return b''
 
-    def send_output(self, value):
-        self._log_debug('Sending output...')
+    def send_data(self, data):
+        '''
+        Send data to device
+        '''
+        if not self.registered:
+            self._log_error('No device registered to IOPort %s', self.ioport_number)
+            return
+        self._log_debug('Sending data...')
         self.device_controller.output_queue.put((
             self.ioport_number,
             self.device_host,
             self.device_port,
             'data',
-            value,
+            data,
         ))
-        self._log_debug('Output sent.')
-        return value
+        self._log_debug('Data sent.')
+
+    def _log_error(self, message, *args):
+        self._log(logging.ERROR, message, *args)
 
     def _log_info(self, message, *args):
         self._log(logging.INFO, message, *args)

@@ -93,9 +93,8 @@ class OUT(Instruction):
         ioport_number = self.get_operand(0)
         pos = self.get_operand(1)
         cx = self.cpu.registers.get_register('CX')
-        output_data = self.cpu.device_controller.ioports[ioport_number].send_output(
-            bytes([self.cpu.memory.read_byte(pos + idx) for idx in range(cx)])
-        )
+        output_data = bytes([self.cpu.memory.read_byte(pos + idx) for idx in range(cx)])
+        self.cpu.device_controller.ioports[ioport_number].send_data(output_data)
         self.cpu.cpu_log(
             'Output data to IOPort %s: %s (%d bytes)',
             ioport_number,

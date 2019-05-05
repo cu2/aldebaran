@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import requests
 
 from utils import utils
-from utils.errors import ArchitectureError
+from utils.errors import AldebaranError, ArchitectureError
 from hardware.memory.memory import SegfaultError
 
 
@@ -116,27 +116,37 @@ class DeviceController:
     def _output_thread_run(self):
         while True:
             try:
-                ioport_number, target_host, target_port, query, data = self.output_queue.get(timeout=1)
+                ioport_number, device_host, device_port, command, data = self.output_queue.get(timeout=1)
             except queue.Empty:
                 if self._stop_event.wait(0):
                     break
                 continue
-            url = 'http://%s:%s/%s' % (target_host, target_port, query)
-            logger.debug('Sending query to %s...', url)
-            output_status = 1
-            try:
-                r = requests.post(
-                    url=url,
-                    data=data,
-                    headers={'content-type': 'application/octet-stream'},
-                )
-                logger.debug('Response: %s', r.text)
-                if r.status_code == 200:
-                    output_status = 0
-            except Exception as e:
-                logger.debug('Error sending query: %s', e)
-            if query == 'data':
-                self.interrupt_controller.send(self.system_interrupts['ioport_out'][ioport_number])
+            logger.debug('Command "%s" from IOPort %s', command, ioport_number)
+            if command == 'data':
+                response = self._send_request(device_host, device_port, 'data', data=data)
+                if response.status_code != 200:
+                    raise DeviceError('Could not send data: {}'.format(response.text))
+                logger.debug('[Device] %s', response.json()['message'])
+            else:
+                logger.error('Unknown command')
+
+    def _send_request(self, device_host, device_port, command, content_type='application/octet-stream', data=None):
+        if data is None:
+            data = b''
+        try:
+            response = requests.post(
+                'http://{}:{}/{}'.format(
+                    device_host,
+                    device_port,
+                    command,
+                ),
+                data=data,
+                headers={'Content-Type': content_type},
+            )
+        except requests.exceptions.ConnectionError:
+            raise DeviceControllerConnectionError('Could not connect to Aldebaran.')
+        logger.debug('Request sent.')
+        return response
 
     def handle_input(self, ioport_number, command, data):
         '''
@@ -355,3 +365,17 @@ class Server(HTTPServer):
     def __init__(self, server_address, request_handler, device_controller):
         HTTPServer.__init__(self, server_address, request_handler)
         self.device_controller = device_controller
+
+
+# pylint: disable=missing-docstring
+
+class DeviceControllerError(AldebaranError):
+    pass
+
+
+class DeviceControllerConnectionError(DeviceControllerError):
+    pass
+
+
+class DeviceError(DeviceControllerError):
+    pass

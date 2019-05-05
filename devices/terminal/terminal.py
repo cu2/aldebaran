@@ -2,7 +2,10 @@
 Primitive terminal device
 '''
 
+from http import HTTPStatus
+
 from devices import device
+from utils import utils
 
 
 DEVICE_TYPE = 0x01
@@ -26,4 +29,9 @@ class Terminal(device.Device):
 
     def handle_data(self, data):
         print('\033[0;36m%s\033[0m' % data.decode('utf-8'))
-        return 200, 'Ok\n'
+        return (
+            HTTPStatus.OK,
+            {
+                'message': 'Received data: {}'.format(utils.binary_to_str(data)),
+            }
+        )
