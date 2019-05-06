@@ -311,7 +311,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     Device Controller's request handler
     '''
 
-    def do_POST(self):
+    def do_POST(self):  # pylint: disable=invalid-name
         '''
         Handle incoming request from devices
         '''
@@ -343,7 +343,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         status, json_response = self.server.device_controller.handle_input(ioport_number, command, data)
         self._send_json(status, json_response)
 
-    def log_message(self, format, *args):
+    def log_message(self, format, *args):  # pylint: disable=redefined-builtin
         '''
         Turn off logging of BaseHTTPRequestHandler
         '''
