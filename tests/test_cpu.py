@@ -6,7 +6,7 @@ from instructions.operands import (
     Operand,
     _get_opbyte,
 )
-from hardware.ram import RAM
+from hardware.memory.ram import RAM
 from hardware.cpu.cpu import (
     CPU, UnknownOpcodeError,
 )
@@ -53,7 +53,8 @@ class TestStack(unittest.TestCase):
             'IVT': 0xF000,
         }
         self.operand_buffer_size = 16
-        self.cpu = CPU(self.system_addresses, self.instruction_set, self.operand_buffer_size)
+        self.halt_freq = 10000
+        self.cpu = CPU(self.system_addresses, self.instruction_set, self.operand_buffer_size, self.halt_freq)
         self.registers = Mock()
         self.ram = RAM(0x10000)
         for idx, opcode in enumerate(self.program):

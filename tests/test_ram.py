@@ -1,6 +1,6 @@
 import unittest
 
-from hardware.ram import RAM, SegfaultError
+from hardware.memory.ram import RAM, SegfaultError
 
 
 class TestRAM(unittest.TestCase):
