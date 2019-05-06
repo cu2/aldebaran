@@ -19,6 +19,10 @@ def main():
             groups[group_name] = []
         groups[group_name].append((opcode, inst))
     print('# Instruction set')
+    print()
+    print('NOTE 1: this documentation is far from finished.')
+    print()
+    print('NOTE 2: the instruction set is even further.')
     for group_name, group_full_name in INSTRUCTION_GROUPS:
         print()
         print()

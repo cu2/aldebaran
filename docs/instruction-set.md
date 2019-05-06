@@ -1,5 +1,9 @@
 # Instruction set
 
+NOTE 1: this documentation is far from finished.
+
+NOTE 2: the instruction set is even further.
+
 
 ## Arithmetic
 
@@ -112,7 +116,7 @@ Enable interrupts
 ## Data transfer
 
 ### IN `<op0>` `<op1>`
-Transfer input data from IOPort &lt;op0&gt;B into memory at address &lt;op1&gt;W, set CX to its length and send ACK
+Transfer input data from IOPort &lt;op0&gt;B into memory at address &lt;op1&gt;W and set CX to its length
 
 ### MOV `<op0>` `<op1>`
 Move data so that &lt;op0&gt; = &lt;op1&gt;

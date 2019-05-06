@@ -62,7 +62,7 @@ class POPF(Instruction):
 # I/O
 
 class IN(Instruction):
-    '''Transfer input data from IOPort <op0>B into memory at address <op1>W, set CX to its length and send ACK'''
+    '''Transfer input data from IOPort <op0>B into memory at address <op1>W and set CX to its length'''
 
     operand_count = 2
     oplens = ['BW']
