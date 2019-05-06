@@ -4,6 +4,7 @@ Device class
 
 import json
 import logging
+import queue
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -23,13 +24,13 @@ class Device:
     Can:
     - register
     - unregister
-    - send data to ALD
-    - listen to "data" signals from ALD
+    - send data to Aldebaran
+    - listen to data signals from Aldebaran
 
     Specific devices should subclass Device and
     - override run() to define main loop of device
-    - use send_data() and send_text() for ALD-input
-    - override handle_data() for ALD-output
+    - use send_data() and send_text() to send data/text to Aldebaran
+    - override handle_data() to handle data coming from Aldebaran
     '''
 
     def __init__(self, ioport_number, device_descriptor, aldebaran_address, device_address):
@@ -39,6 +40,9 @@ class Device:
         self.device_host, self.device_port = device_address
         self._server = Server((self.device_host, self.device_port), RequestHandler, self)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
+        self._output_queue = queue.Queue()
+        self._stop_event = threading.Event()
+        self._output_thread = threading.Thread(target=self._output_thread_run)
 
     def start(self):
         '''
@@ -46,6 +50,7 @@ class Device:
         '''
         logger.info('Starting...')
         self._input_thread.start()
+        self._output_thread.start()
         logger.info('Started.')
 
     def stop(self):
@@ -56,6 +61,8 @@ class Device:
         self._server.shutdown()
         self._server.server_close()
         self._input_thread.join()
+        self._stop_event.set()
+        self._output_thread.join()
         logger.info('Stopped.')
 
     def register(self):
@@ -63,17 +70,16 @@ class Device:
         Register device to IOPort
         '''
         logger.info('Registering...')
-        response = self._send_request('register', 'application/json', json.dumps({
+        response = self._send_request('register', json.dumps({
             'type': hex(self.device_type),
             'id': hex(self.device_id),
             'host': self.device_host,
             'port': self.device_port,
-        }))
+        }), 'application/json')
         if response.status_code != 200:
             raise RegistrationError('Could not register: {}'.format(response.text))
         logger.debug('[Aldebaran] %s', response.json()['message'])
         logger.info('Registered.')
-        return 0
 
     def unregister(self):
         '''
@@ -85,25 +91,18 @@ class Device:
             raise RegistrationError('Could not unregister: {}'.format(response.text))
         logger.debug('[Aldebaran] %s', response.json()['message'])
         logger.info('Unregistered.')
-        return 0
 
     def send_data(self, data):
         '''
         Send data to IOPort
         '''
-        logger.debug('Sending data...')
-        response = self._send_request('data', data=data)
-        if response.status_code != 200:
-            raise RegistrationError('Could not send data: {}'.format(response.text))
-        logger.debug('[Aldebaran] %s', response.json()['message'])
-        logger.debug('Data sent.')
-        return 0
+        self._output_queue.put(data)
 
     def send_text(self, text):
         '''
         Send text (encoded as UTF-8) to IOPort
         '''
-        return self.send_data(text.encode('utf-8'))
+        self.send_data(text.encode('utf-8'))
 
     def handle_input(self, command, data):
         '''
@@ -129,6 +128,8 @@ class Device:
     def handle_data(self, data):
         '''
         Handle data coming from Aldebaran
+
+        Return (HttpStatus, json) tuple
         '''
         raise NotImplementedError()
 
@@ -138,7 +139,22 @@ class Device:
         '''
         raise NotImplementedError()
 
-    def _send_request(self, command, content_type='application/octet-stream', data=None):
+    def _output_thread_run(self):
+        while True:
+            try:
+                data = self._output_queue.get(timeout=0.1)
+            except queue.Empty:
+                if self._stop_event.wait(0):
+                    break
+                continue
+            logger.debug('Sending data...')
+            response = self._send_request('data', data)
+            if response.status_code != 200:
+                raise CommunicationError('Could not send data: {}'.format(response.text))
+            logger.debug('[Aldebaran] %s', response.json()['message'])
+            logger.debug('Data sent.')
+
+    def _send_request(self, command, data=None, content_type='application/octet-stream'):
         if data is None:
             data = b''
         try:
@@ -212,4 +228,8 @@ class DeviceConnectionError(DeviceError):
 
 
 class RegistrationError(DeviceError):
+    pass
+
+
+class CommunicationError(DeviceError):
     pass

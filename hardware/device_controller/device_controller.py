@@ -116,21 +116,21 @@ class DeviceController:
     def _output_thread_run(self):
         while True:
             try:
-                ioport_number, device_host, device_port, command, data = self.output_queue.get(timeout=1)
+                ioport_number, device_host, device_port, command, data = self.output_queue.get(timeout=0.1)
             except queue.Empty:
                 if self._stop_event.wait(0):
                     break
                 continue
             logger.debug('Command "%s" from IOPort %s', command, ioport_number)
             if command == 'data':
-                response = self._send_request(device_host, device_port, 'data', data=data)
+                response = self._send_request(device_host, device_port, 'data', data)
                 if response.status_code != 200:
                     raise DeviceError('Could not send data: {}'.format(response.text))
                 logger.debug('[Device] %s', response.json()['message'])
             else:
                 logger.error('Unknown command')
 
-    def _send_request(self, device_host, device_port, command, content_type='application/octet-stream', data=None):
+    def _send_request(self, device_host, device_port, command, data=None, content_type='application/octet-stream'):
         if data is None:
             data = b''
         try:
