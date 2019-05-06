@@ -7,6 +7,7 @@ Usage: python aldebaran.py <file>
 import argparse
 import time
 import logging
+import sys
 
 from instructions.instruction_set import INSTRUCTION_SET
 from hardware import (
@@ -288,6 +289,7 @@ def _set_logging(verbosity):
             'name': '',
             'level': levels['usr'][verbosity],
             'color': '1;37',
+            'stream': sys.stdout,
         },
         'hardware.cpu.registers': {
             'name': 'CPU',

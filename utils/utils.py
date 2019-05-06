@@ -90,7 +90,7 @@ def config_loggers(logconfig):
     for logname, details in logconfig.items():
         logger = logging.getLogger(logname)
         logger.propagate = False
-        handler = logging.StreamHandler()
+        handler = logging.StreamHandler(stream=details.get('stream'))
         handler.setLevel(logging.DEBUG)
         if details['name']:
             name_prefix = '[{}] '.format(details['name'])
