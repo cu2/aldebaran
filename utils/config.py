@@ -45,7 +45,7 @@ system_interrupts = {
     'device_registered': 0x1E,
     'device_unregistered': 0x1F,
     'ioport_in': [0x20 + ioport_number for ioport_number in range(number_of_ioports)],
-    'ioport_out': [0x30 + ioport_number for ioport_number in range(number_of_ioports)],
+    'device_status_changed': [0x30 + ioport_number for ioport_number in range(number_of_ioports)],
 }
 system_addresses = {
     # physical addresses:

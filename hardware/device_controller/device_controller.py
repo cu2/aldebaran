@@ -34,6 +34,7 @@ class DeviceController:
         self._server = Server((host, port), RequestHandler, self)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_thread = threading.Thread(target=self._output_thread_run)
+        self._ping_thread = threading.Thread(target=self._ping_thread_run)
 
         self.ioports = ioports
         self.interrupt_controller = None
@@ -50,18 +51,19 @@ class DeviceController:
 
     def start(self):
         '''
-        Start input and output threads
+        Start input, output and ping threads
         '''
         if not self.architecture_registered:
             raise ArchitectureError('Device Controller cannot run without registering architecture')
         logger.info('Starting...')
         self._input_thread.start()
         self._output_thread.start()
+        self._ping_thread.start()
         logger.info('Started.')
 
     def stop(self):
         '''
-        Stop input and output threads
+        Stop input, output and ping threads
         '''
         logger.info('Stopping...')
         self._server.shutdown()
@@ -69,6 +71,7 @@ class DeviceController:
         self._input_thread.join()
         self._stop_event.set()
         self._output_thread.join()
+        self._ping_thread.join()
         logger.info('Stopped.')
 
     def read_byte(self, pos, silent=False):
@@ -113,6 +116,16 @@ class DeviceController:
         '''
         raise SegfaultError('Segmentation fault when trying to write word at {}'.format(utils.word_to_str(pos)))
 
+    def _set_device_status(self, ioport_number, status):
+        if status < 0:
+            status = 0
+        if status > 255:
+            status = 255
+        changed = status != self._device_status_table[ioport_number]
+        self._device_status_table[ioport_number] = status
+        if changed:
+            self.interrupt_controller.send(self.system_interrupts['device_status_changed'][ioport_number])
+
     def _output_thread_run(self):
         while True:
             try:
@@ -129,6 +142,42 @@ class DeviceController:
                 logger.debug('[Device] %s', response.json()['message'])
             else:
                 logger.error('Unknown command')
+
+    def _ping_thread_run(self):
+        ping_period = 1  # sec
+        while True:
+            for ioport in self.ioports:
+                if ioport.registered:
+                    self._check_and_update_device_status(ioport)
+            if self._stop_event.wait(ping_period):
+                break
+
+    def _check_and_update_device_status(self, ioport):
+        ponged = self._ping_device(ioport)
+        if ponged:
+            ping_message = 'ponged'
+        else:
+            ping_message = 'did not pong'
+        logger.debug(
+            'Device[%s:%s] @ IOPort[%s] %s.',
+            ioport.device_host, ioport.device_port,
+            ioport.ioport_number,
+            ping_message,
+        )
+        if ponged:
+            new_status = 0
+        else:
+            new_status = self._device_status_table[ioport.ioport_number] + 1
+        self._set_device_status(ioport.ioport_number, new_status)
+
+    def _ping_device(self, ioport):
+        try:
+            response = self._send_request(ioport.device_host, ioport.device_port, 'ping')
+            if response.status_code != 200:
+                raise DeviceError('Device did not pong.')
+        except DeviceControllerError:
+            return False
+        return True
 
     def _send_request(self, device_host, device_port, command, data=None, content_type='application/octet-stream'):
         if data is None:
@@ -270,7 +319,7 @@ class DeviceController:
         self._device_registry[4 * ioport_number] = device_type
         for idx in range(3):
             self._device_registry[4 * ioport_number + 1 + idx] = device_id[idx]
-        self._device_status_table[ioport_number] = 0
+        self._set_device_status(ioport_number, 0)
         self.ioports[ioport_number].register_device(device_host, device_port)
         self.interrupt_controller.send(self.system_interrupts['device_registered'])
         logger.info('Device registered to IOPort %s.', ioport_number)
@@ -294,7 +343,7 @@ class DeviceController:
         logger.info('Unregistering device from IOPort %s...', ioport_number)
         for idx in range(4):
             self._device_registry[4 * ioport_number + idx] = 0
-        self._device_status_table[ioport_number] = 0
+        self._set_device_status(ioport_number, 0)
         self.ioports[ioport_number].unregister_device()
         self.interrupt_controller.send(self.system_interrupts['device_unregistered'])
         logger.info('Device unregistered from IOPort %s.', ioport_number)

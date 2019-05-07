@@ -62,6 +62,8 @@ When a new device is connected, first it's registered with an IOPort and into th
 - 1 byte Device Type (00 if no device is registered)
 - 3 bytes Device ID (000000 if no device is registered)
 
+The Device Controller pings all registered devices every second. If a device responds, its status is set to `00`, otherwise the status increases by 1 until `FF`. So the device's status shows how many seconds ago it ponged the last time (useful for checking connection errors). The statuses are stored in the Device Status Table: one byte for each device. When a status changes (either it increases or it resets to zero) a `device_status_changed` interrupt is fired.
+
 
 ### Timer
 
