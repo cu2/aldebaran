@@ -5,6 +5,7 @@ Device runner script
 import argparse
 import importlib
 import logging
+import time
 
 from utils import config
 from utils import utils
@@ -56,7 +57,7 @@ def main():
     device.start()
 
     try:
-        device.register()
+        _register(device)
     except DeviceError as ex:
         device.stop()
         logger.error(ex)
@@ -77,6 +78,16 @@ def main():
         except DeviceError as ex:
             logger.error(ex)
         device.stop()
+
+
+def _register(device):
+    while True:
+        try:
+            device.register()
+        except DeviceError:
+            time.sleep(1)
+        else:
+            return
 
 
 def _set_logging(verbosity):
