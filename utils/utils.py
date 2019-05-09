@@ -2,7 +2,9 @@
 Utils, like binary_to_number, set_low, set_high...
 '''
 
+import json
 import logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from .errors import AldebaranError
 
@@ -115,6 +117,42 @@ def config_loggers(logconfig):
             logger.setLevel(logging.WARNING)
         elif details['level'] == 'E':
             logger.setLevel(logging.ERROR)
+
+
+class GenericRequestHandler(BaseHTTPRequestHandler):
+    '''
+    Request handler for Device Controller and devices
+    '''
+
+    def do_POST(self):  # pylint: disable=invalid-name
+        '''
+        Get response from request_handler_function and return as JSON
+        '''
+        status, json_response = self.server.request_handler_function(self.path, self.headers, self.rfile)
+        self._send_json(status, json_response)
+
+    def log_message(self, format, *args):  # pylint: disable=redefined-builtin
+        '''
+        Turn off logging of BaseHTTPRequestHandler
+        '''
+
+    def _send_json(self, status, json_response=None):
+        self.send_response(status.value)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        if json_response is not None:
+            self.wfile.write(json.dumps(json_response).encode('utf-8'))
+            self.wfile.write(b'\n')
+
+
+class GenericServer(HTTPServer):
+    '''
+    Server for Device Controller and devices
+    '''
+
+    def __init__(self, server_address, request_handler, request_handler_function):
+        HTTPServer.__init__(self, server_address, request_handler)
+        self.request_handler_function = request_handler_function
 
 
 # pylint: disable=missing-docstring

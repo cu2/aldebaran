@@ -7,11 +7,11 @@ import logging
 import queue
 import threading
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
 
 from utils.errors import AldebaranError
+from utils.utils import GenericRequestHandler, GenericServer
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class Device:
         self.device_type, self.device_id = device_descriptor
         self.aldebaran_host, self.aldebaran_device_controller_port = aldebaran_address
         self.device_host, self.device_port = device_address
-        self._server = Server((self.device_host, self.device_port), RequestHandler, self)
+        self._server = GenericServer((self.device_host, self.device_port), GenericRequestHandler, self._handle_incoming_request)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_queue = queue.Queue()
         self._stop_event = threading.Event()
@@ -104,9 +104,21 @@ class Device:
         '''
         self.send_data(text.encode('utf-8'))
 
-    def handle_input(self, command, data):
+    def _handle_incoming_request(self, path, headers, rfile):
         '''
-        Handle request from Aldebaran
+        Handle incoming request from Aldebaran, called by GenericRequestHandler
+        '''
+        command = path.lstrip('/')
+        try:
+            request_body_length = int(headers.get('Content-Length'))
+        except TypeError:
+            return (HTTPStatus.LENGTH_REQUIRED, None)
+        data = rfile.read(request_body_length)
+        return self._handle_input(command, data)
+
+    def _handle_input(self, command, data):
+        '''
+        Handle command from Aldebaran
         '''
         logger.debug('Incoming command: %s', command)
         if command == 'ping':
@@ -172,49 +184,6 @@ class Device:
             raise DeviceConnectionError('Could not connect to Aldebaran.')
         logger.debug('Request sent.')
         return response
-
-
-class RequestHandler(BaseHTTPRequestHandler):
-    '''
-    Device's request handler
-    '''
-
-    def do_POST(self):  # pylint: disable=invalid-name
-        '''
-        Handle incoming request from Aldebaran
-        '''
-        command = self.path.lstrip('/')
-        try:
-            request_body_length = int(self.headers.get('Content-Length'))
-        except TypeError:
-            self._send_json(HTTPStatus.LENGTH_REQUIRED)
-            return
-        data = self.rfile.read(request_body_length)
-        status, json_response = self.server.device.handle_input(command, data)
-        self._send_json(status, json_response)
-
-    def log_message(self, format, *args):  # pylint: disable=redefined-builtin
-        '''
-        Turn off logging of BaseHTTPRequestHandler
-        '''
-
-    def _send_json(self, status, json_response=None):
-        self.send_response(status.value)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        if json_response is not None:
-            self.wfile.write(json.dumps(json_response).encode('utf-8'))
-            self.wfile.write(b'\n')
-
-
-class Server(HTTPServer):
-    '''
-    Device's server
-    '''
-
-    def __init__(self, server_address, request_handler, device):
-        HTTPServer.__init__(self, server_address, request_handler)
-        self.device = device
 
 
 # pylint: disable=missing-docstring

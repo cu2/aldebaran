@@ -7,12 +7,12 @@ import logging
 import queue
 import threading
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
 
 from utils import utils
 from utils.errors import AldebaranError, ArchitectureError
+from utils.utils import GenericRequestHandler, GenericServer
 from hardware.memory.memory import SegfaultError
 
 
@@ -31,7 +31,7 @@ class DeviceController:
         self._device_status_table = [0] * system_addresses['device_status_table_size']
         self.output_queue = queue.Queue()
         self._stop_event = threading.Event()
-        self._server = Server((host, port), RequestHandler, self)
+        self._server = GenericServer((host, port), GenericRequestHandler, self._handle_incoming_request)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_thread = threading.Thread(target=self._output_thread_run)
         self._ping_thread = threading.Thread(target=self._ping_thread_run)
@@ -197,9 +197,43 @@ class DeviceController:
         logger.debug('Request sent.')
         return response
 
-    def handle_input(self, ioport_number, command, data):
+    def _handle_incoming_request(self, path, headers, rfile):
         '''
-        Handle request from device
+        Handle incoming request from devices, called by GenericRequestHandler
+        '''
+        max_ioport_number = len(self.ioports) - 1
+        path = path.lstrip('/')
+        if '/' not in path:
+            return (
+                HTTPStatus.BAD_REQUEST,
+                {
+                    'error': 'Path must be /ioport/command',
+                }
+            )
+        ioport_number, command = path.split('/', 1)
+        try:
+            ioport_number = int(ioport_number)
+            if ioport_number < 0:
+                raise ValueError()
+            if ioport_number > max_ioport_number:
+                raise ValueError()
+        except ValueError:
+            return (
+                HTTPStatus.BAD_REQUEST,
+                {
+                    'error': 'IOPort number must be an integer between 0 and {}.'.format(max_ioport_number),
+                }
+            )
+        try:
+            request_body_length = int(headers.get('Content-Length'))
+        except TypeError:
+            return (HTTPStatus.LENGTH_REQUIRED, None)
+        data = rfile.read(request_body_length)
+        return self._handle_input(ioport_number, command, data)
+
+    def _handle_input(self, ioport_number, command, data):
+        '''
+        Handle command from device
         '''
         logger.debug('Incoming command "%s" to IOPort %s', command, ioport_number)
         if command == 'register':
@@ -353,67 +387,6 @@ class DeviceController:
                 'message': 'Device unregistered.',
             }
         )
-
-
-class RequestHandler(BaseHTTPRequestHandler):
-    '''
-    Device Controller's request handler
-    '''
-
-    def do_POST(self):  # pylint: disable=invalid-name
-        '''
-        Handle incoming request from devices
-        '''
-        max_ioport_number = len(self.server.device_controller.ioports) - 1
-        path = self.path.lstrip('/')
-        if '/' not in path:
-            self._send_json(HTTPStatus.BAD_REQUEST, {
-                'error': 'Path must be /ioport/command',
-            })
-            return
-        ioport_number, command = path.split('/', 1)
-        try:
-            ioport_number = int(ioport_number)
-            if ioport_number < 0:
-                raise ValueError()
-            if ioport_number > max_ioport_number:
-                raise ValueError()
-        except ValueError:
-            self._send_json(HTTPStatus.BAD_REQUEST, {
-                'error': 'IOPort number must be an integer between 0 and {}.'.format(max_ioport_number)
-            })
-            return
-        try:
-            request_body_length = int(self.headers.get('Content-Length'))
-        except TypeError:
-            self._send_json(HTTPStatus.LENGTH_REQUIRED)
-            return
-        data = self.rfile.read(request_body_length)
-        status, json_response = self.server.device_controller.handle_input(ioport_number, command, data)
-        self._send_json(status, json_response)
-
-    def log_message(self, format, *args):  # pylint: disable=redefined-builtin
-        '''
-        Turn off logging of BaseHTTPRequestHandler
-        '''
-
-    def _send_json(self, status, json_response=None):
-        self.send_response(status.value)
-        self.send_header('Content-Type', 'application/json')
-        self.end_headers()
-        if json_response is not None:
-            self.wfile.write(json.dumps(json_response).encode('utf-8'))
-            self.wfile.write(b'\n')
-
-
-class Server(HTTPServer):
-    '''
-    Device Controller's server
-    '''
-
-    def __init__(self, server_address, request_handler, device_controller):
-        HTTPServer.__init__(self, server_address, request_handler)
-        self.device_controller = device_controller
 
 
 # pylint: disable=missing-docstring
