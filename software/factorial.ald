@@ -1,6 +1,6 @@
 # Print factorials from 0! to 8! forever
 # 9! is out of word range
-# FACT is a recursive function, parameters and return values are handled through the stack
+# FACT is a recursive function, parameters are handled through the stack, return value through registers
 
 
 # MAIN
@@ -10,10 +10,8 @@ START:
 
 LOOP:
         # AX = FACT([COUNTER]):
-        DEC SP 0x0002
         PUSH [COUNTER]
         CALL FACT
-        POP AX
 
         PRINT [COUNTER]
         PRINTCHAR 0x21  # !
@@ -22,35 +20,32 @@ LOOP:
         PRINTCHAR 0x20  # ' '
         INC [COUNTER] 0x0001
         JLE [COUNTER] [MAX_CNT] LOOP
+        SHUTDOWN  # TODO: just for testing
         JMP START
 
 # END MAIN
 
 
-# SUB FACT (param): retval
+# SUB FACT (param): AX
 FACT:
         # SUB PROLOGUE:
         ENTER 0x00
-        PUSH AX  # save regs
 
         # SUBMAIN:
         JNZ [BP+0x05] NONZERO  # param == 0?
-        MOV [BP+0x07] 0x0001  # retval = 1
+        MOV AX 0x0001  # AX = 1
         JMP EPILOGUE
 
 NONZERO:
         SUB AX [BP+0x05] 0x0001  # AX = param - 1
 
         # AX = FACT(AX) = FACT(param - 1)
-        DEC SP 0x0002
         PUSH AX
         CALL FACT
-        POP AX
 
-        MUL [BP+0x07] [BP+0x05] AX  # retval = param * FACT(param - 1)
+        MUL AX [BP+0x05] AX  # AX = param * FACT(param - 1)
 
 EPILOGUE:
-        POP AX  # restore regs
         LEAVE
         RETPOP 0x02
 

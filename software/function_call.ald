@@ -1,18 +1,18 @@
 # Generic function call with parameters, local variables and return value
-# All caller-callee communication and local vars go on the stack
+# Parameters and local vars go on the stack, return value through registers
 
 
 MAIN:
         MOV AX 0x1357  # for testing
+        PUSH AX
 
-        # retval = SUBROUTINE(param1, param2)
-        DEC SP 0x02  # 2 bytes for retval
+        # AX = SUBROUTINE(param1, param2)
         PUSH [PARAM1]
         PUSH [PARAM2]
         CALL SUBROUTINE
-        POP [RETVAL]
+        PRINT AX  # is it BCDE?
 
-        PRINT [RETVAL]  # is it BCDE?
+        POP AX
         PRINT AX  # is it still 1357?
 
         SHUTDOWN
@@ -21,27 +21,22 @@ MAIN:
 SUBROUTINE:
         # sub prologue:
         ENTER 0x06  # 6 bytes for local vars
-        PUSH AX
 
         # sub main:
-        MOV AX 0x0000
         PRINT [BP+0x05]  # param2
         PRINT [BP+0x07]  # param1
-        PRINT [BP+0x09]  # retval
         MOV [BP-0x01] 0x2345  # var1 = 2345
         MOV [BP-0x03] 0x6789  # var2 = 6789
         MOV [BP-0x05] 0xBCDE  # var3 = BCDE
         PRINT [BP-0x01]  # var1
         PRINT [BP-0x03]  # var2
         PRINT [BP-0x05]  # var3
-        MOV [BP+0x09] [BP-0x05]  # retval = var3
+        MOV AX [BP-0x05]  # retval = var3
 
         # sub epilogue:
-        POP AX
         LEAVE
         RETPOP 0x04  # 4 bytes for params
 
 
 PARAM1: .DAT 0xABCD
 PARAM2: .DAT 0x1234
-RETVAL: .DAT 0x0000
