@@ -49,8 +49,13 @@ Call subroutine at address &lt;op0&gt;
 ### CLI
 Disable interrupts
 
-### ENTER `<op0>`
-Enter subroutine: set frame pointer and allocate &lt;op0&gt; bytes on stack for local variables
+### ENTER `<op0>` `<op1>`
+
+Enter subroutine: set frame pointer and allocate &lt;op1&gt; bytes on stack for local variables
+
+- &lt;op0&gt; = byte count of parameters (allocated by PUSH instructions in caller)
+- &lt;op1&gt; = byte count of local variables (allocated by ENTER instruction in callee)
+
 
 ### INT `<op0>`
 Call interrupt &lt;op0&gt;
@@ -97,14 +102,11 @@ Jump to &lt;op1&gt; if &lt;op0&gt; is non-zero
 ### JZ `<op0>` `<op1>`
 Jump to &lt;op1&gt; if &lt;op0&gt; is zero
 
-### LEAVE
-Leave subroutine: free stack allocated for local variables
+### LVRET
+Leave subroutine and return from it: free stack allocated for local variables and parameters
 
 ### RET
 Return from subroutine
-
-### RETPOP `<op0>`
-Return from subroutine and pop &lt;op0&gt; bytes
 
 ### SETINT `<op0>` `<op1>`
 Set IVT[&lt;op0&gt;] to &lt;op1&gt;

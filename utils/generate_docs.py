@@ -3,6 +3,7 @@ Generate docs for instruction set
 '''
 
 import html
+import textwrap
 
 from instructions.instruction_set import INSTRUCTION_SET, INSTRUCTION_GROUPS
 
@@ -32,7 +33,7 @@ def main():
             title = ' '.join([inst.__name__] + operands)
             print()
             print('### {}'.format(title))
-            print(html.escape(inst.__doc__))
+            print(html.escape(textwrap.dedent(inst.__doc__)))
 
 
 if __name__ == '__main__':

@@ -30,6 +30,7 @@ Run executable:
 - [Assembly language](docs/assembly.md)
 - [Instruction set](docs/instruction-set.md)
 - [Opcode structure](docs/opcode-structure.md)
+- [Calling convention](docs/calling-convention.md)
 - [System config](docs/system-config.md)
 
 
