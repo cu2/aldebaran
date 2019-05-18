@@ -1,6 +1,15 @@
 # Generic function call with parameters, local variables and return value
 # Parameters and local vars go on the stack, return value through registers
 
+# It should print the following:
+# 1234  # = param2
+# ABCD  # = param1
+# 2345  # = var1
+# 6789  # = var2
+# BCDE  # = var3
+# BCDE  # = AX = return value = var3
+# 1357  # = original AX
+
 
 MAIN:
         MOV AX 0x1357  # for testing
@@ -20,11 +29,11 @@ MAIN:
 
 SUBROUTINE:
         # sub prologue:
-        ENTER 0x06  # 6 bytes for local vars
+        ENTER 0x04 0x06  # 4 bytes for params, 6 bytes for local vars
 
         # sub main:
-        PRINT [BP+0x05]  # param2
-        PRINT [BP+0x07]  # param1
+        PRINT [BP+0x07]  # param2
+        PRINT [BP+0x09]  # param1
         MOV [BP-0x01] 0x2345  # var1 = 2345
         MOV [BP-0x03] 0x6789  # var2 = 6789
         MOV [BP-0x05] 0xBCDE  # var3 = BCDE
@@ -34,8 +43,7 @@ SUBROUTINE:
         MOV AX [BP-0x05]  # retval = var3
 
         # sub epilogue:
-        LEAVE
-        RETPOP 0x04  # 4 bytes for params
+        LVRET
 
 
 PARAM1: .DAT 0xABCD

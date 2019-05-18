@@ -20,7 +20,6 @@ LOOP:
         PRINTCHAR 0x20  # ' '
         INC [COUNTER] 0x0001
         JLE [COUNTER] [MAX_CNT] LOOP
-        SHUTDOWN  # TODO: just for testing
         JMP START
 
 # END MAIN
@@ -29,25 +28,24 @@ LOOP:
 # SUB FACT (param): AX
 FACT:
         # SUB PROLOGUE:
-        ENTER 0x00
+        ENTER 0x02 0x00  # 2 bytes for params, 0 bytes for local vars
 
         # SUBMAIN:
-        JNZ [BP+0x05] NONZERO  # param == 0?
+        JNZ [BP+0x07] NONZERO  # param == 0?
         MOV AX 0x0001  # AX = 1
         JMP EPILOGUE
 
 NONZERO:
-        SUB AX [BP+0x05] 0x0001  # AX = param - 1
+        SUB AX [BP+0x07] 0x0001  # AX = param - 1
 
         # AX = FACT(AX) = FACT(param - 1)
         PUSH AX
         CALL FACT
 
-        MUL AX [BP+0x05] AX  # AX = param * FACT(param - 1)
+        MUL AX [BP+0x07] AX  # AX = param * FACT(param - 1)
 
 EPILOGUE:
-        LEAVE
-        RETPOP 0x02
+        LVRET
 
 # ENDSUB FACT
 
