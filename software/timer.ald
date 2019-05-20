@@ -1,20 +1,39 @@
 # Demo for Timer unit
 
 
+# constants
+        .CONST $LETTER[S] 0x53  # S
+        .CONST $LETTER[T] 0x54  # T
+
+# config subtimer 0
+        .CONST $timer[1]  0x00
+        .CONST $int[1]    0x80
+        .CONST $speed[1]  0x000A
+        .CONST $phase[1]  0x0000
+        .CONST $char[1]   $LETTER[S]
+
+# config subtimer 1
+        .CONST $timer[2]  0x01
+        .CONST $int[2]    0x81
+        .CONST $speed[2]  0x000A
+        .CONST $phase[2]  0x0005
+        .CONST $char[2]   $LETTER[T]
+
+
 MAIN:
-        SETINT 0x80 TIMER_HANDLER_1
-        SETTMR 0x00 0x02 0x000A 0x0000 0x80  # subtimer, mode, speed, phase, irq
-        SETINT 0x81 TIMER_HANDLER_2
-        SETTMR 0x01 0x02 0x000A 0x0005 0x81
+        SETINT $int[1] TIMER_HANDLER_1
+        SETTMR $timer[1] 0x02 $speed[1] $phase[1] $int[1]  # subtimer, mode, speed, phase, irq
+        SETINT $int[2] TIMER_HANDLER_2
+        SETTMR $timer[2] 0x02 $speed[2] $phase[2] $int[2]
 HALTLOOP:
         HLT
         JMP HALTLOOP
 
 
 TIMER_HANDLER_1:
-        PRINTCHAR 0x53  # S
+        PRINTCHAR $char[1]
         IRET
 
 TIMER_HANDLER_2:
-        PRINTCHAR 0x54  # T
+        PRINTCHAR $char[2]
         IRET

@@ -1,6 +1,11 @@
 # Chat between two terminals
 
 
+        .CONST $terminal_id[0] 0x00
+        .CONST $terminal_id[1] 0x01
+        .CONST $input_buffer_length 0x0100
+
+
 MAIN:
         SETINT 0x20 INPUT_HANDLER_0  # ioport_in[0]
         SETINT 0x21 INPUT_HANDLER_1  # ioport_in[0]
@@ -10,27 +15,21 @@ HALTLOOP:
 
 
 INPUT_HANDLER_0:  # if terminal 0 sends something, forward it to terminal 1
-        IN [TERMINAL_ID_0]B INPUT_BUFFER_0
-        OUT [TERMINAL_ID_1]B INPUT_BUFFER_0
+        IN $terminal_id[0] INPUT_BUFFER_0
+        OUT $terminal_id[1] INPUT_BUFFER_0
         IRET
 
 
 INPUT_HANDLER_1:
-        IN [TERMINAL_ID_1]B INPUT_BUFFER_1
-        OUT [TERMINAL_ID_0]B INPUT_BUFFER_1
+        IN $terminal_id[1] INPUT_BUFFER_1
+        OUT $terminal_id[0] INPUT_BUFFER_1
         IRET
 
 
 # DATA
 
 INPUT_BUFFER_0:
-        .DATN 0x0100 0x00
+        .DATN $input_buffer_length 0x00
 
 INPUT_BUFFER_1:
-        .DATN 0x0100 0x00
-
-TERMINAL_ID_0:
-        .DAT 0x00
-
-TERMINAL_ID_1:
-        .DAT 0x01
+        .DATN $input_buffer_length 0x00

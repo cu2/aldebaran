@@ -21,6 +21,8 @@ Identifiers (label names) are case sensitive, instructions, macros, registers, h
 - a label definition is a label name followed immediately by a colon (`:`)
 - instruction names consist of letters
 - macro names start with a dot (`.`) and continue with letters
+- variable names start with a dollar (`$`) and continue with letters, digits, underscores and brackets `[]`
+- system variable names start with two dollars (`$$`) and continue with letters, digits, underscores and brackets `[]`
 - byte literals start with `0x` and continue with 2 hexadecimal digits (`0-9A-F`)
 - word literals start with `0x` and continue with 4 hexadecimal digits (`0-9A-F`)
 - string literals (used with macros) start with a single or double quote, continue with anything but quote and end with a quote matching the opening quote. Currently you cannot escape quotes, so if you need a string like `I can't dance`, use double quotes: `"I can't dance"`.
@@ -68,6 +70,27 @@ How the substituted address is evaluated, depends on the reference type. For mor
 ## Comments
 
 Comments are comments. They are completely ignored.
+
+
+## Variables
+
+A variable refers to a "value". You can define variables with macros, e.g. `.CONST`:
+
+```
+.const $var 0x1234
+```
+
+After this line `$var` refers to `0x1234`, so every time the assembler sees `$var`, it substitutes it with `0x1234`. So
+
+```
+mov ax $var
+```
+
+will become:
+
+```
+mov ax 0x1234
+```
 
 
 ## Instructions
@@ -142,7 +165,7 @@ Used for arrays.
 
 ## Macros
 
-Macros are special instructions for the assembler itself. They are preprocessed and the result is written into the opcode. Currently there are two macros.
+Macros are special instructions for the assembler itself. They are preprocessed and the result is written into the opcode.
 
 ### .DAT `<param>+`
 
@@ -174,3 +197,40 @@ Examples:
 `.datn 0xff 0x00` will insert 255 `00` bytes
 
 Used for global variables (e.g. string buffers).
+
+### .CONST `<name>` `<value>`
+
+It has two parameters:
+
+- name: a variable name
+- value: a byte, word or string literal
+
+With `.CONST` you can define a variable. The assembler will substitute its value every time it finds it.
+
+E.g. this line defines the variable `$var`:
+
+```
+.const $var 0x1234
+```
+
+After this line, every `$var` will be substituted as `0x1234`:
+
+```
+mov ax $var
+.dat $var
+.const $other_var $var
+```
+
+will become:
+
+```
+mov ax 0x1234
+.dat 0x1234
+.const $other_var 0x1234
+```
+
+Important: variables defined by `.CONST` cannot be redefined, so this is invalid after the above line:
+
+```
+.const $var 0xABCD
+```
