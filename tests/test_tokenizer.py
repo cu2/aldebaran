@@ -68,7 +68,7 @@ class TestTokenizer(unittest.TestCase):
         ])
 
     def test_every_token_type(self):
-        tokens = self.tokenizer.tokenize('label: other_label: MOV AX AL 0x1234 0x12 ^0x1234 ^label [AX] [AX+0x12]B [AX-0x12]B [0x1234]B [label]B [0x1234+0x56] [label+0x56] [0x1234+AX] [label+AX] JMP third_label .DAT "hello world with kinda # comment"  # actual comment')
+        tokens = self.tokenizer.tokenize('label: other_label: MOV AX AL 0x1234 0x12 ^0x1234 ^label [AX] [AX+0x12]B [AX-0x12]B [0x1234]B [label]B [0x1234+0x56] [label+0x56] [0x1234+AX] [label+AX] JMP third_label .DAT "hello world with kinda # comment" $var $$system_var[abc]  # actual comment')
         self.assertListEqual(tokens, [
             Token(TokenType.LABEL, 'label', 0),
             Token(TokenType.LABEL, 'other_label', 7),
@@ -92,7 +92,9 @@ class TestTokenizer(unittest.TestCase):
             Token(TokenType.IDENTIFIER, 'third_label', 157),
             Token(TokenType.MACRO, 'DAT', 169),
             Token(TokenType.STRING_LITERAL, 'hello world with kinda # comment', 174),
-            Token(TokenType.COMMENT, ' actual comment', 210)
+            Token(TokenType.VARIABLE, '$var', 209),
+            Token(TokenType.SYSTEM_VARIABLE, '$$system_var[abc]', 214),
+            Token(TokenType.COMMENT, ' actual comment', 233),
         ])
 
     def test_error_unexpected_char(self):

@@ -7,6 +7,8 @@ Token types:
 - COMMENT(content: string): comment, e.g. # comment
 - INSTRUCTION(name: string): instruction, e.g. mov
 - MACRO(name: string): macro, e.g. .dat
+- VARIABLE(name: string): assembly variable, e.g. $x
+- SYSTEM_VARIABLE(name: string): assembly system variable, e.g. $$INT_IOPORT_IN[F]
 - WORD_REGISTER(name: instructions.operands.WORD_REGISTER): word register, e.g. AX
 - BYTE_REGISTER(name: instructions.operands.BYTE_REGISTER): byte register, e.g. AL
 - ADDRESS_WORD_LITERAL(value: signed word): address word literal, e.g. ^0x1234
@@ -87,6 +89,8 @@ TokenType = Enum('TokenType', [  # pylint: disable=invalid-name
     'COMMENT',
     'INSTRUCTION',
     'MACRO',
+    'VARIABLE',
+    'SYSTEM_VARIABLE',
     'WORD_REGISTER',
     'BYTE_REGISTER',
     'ADDRESS_WORD_LITERAL',
@@ -106,6 +110,8 @@ TokenType = Enum('TokenType', [  # pylint: disable=invalid-name
 
 ARGUMENT_TYPES = {
     TokenType.STRING_LITERAL,
+    TokenType.VARIABLE,
+    TokenType.SYSTEM_VARIABLE,
     TokenType.WORD_REGISTER,
     TokenType.BYTE_REGISTER,
     TokenType.ADDRESS_WORD_LITERAL,
@@ -166,6 +172,7 @@ class Tokenizer:
         # NOTE: code.upper() is matched against these regex patterns
         basic_patterns = {
             'identifier': r'[A-Z_][A-Z0-9_]*',
+            'var_name': r'[A-Z_][A-Z0-9_\[\]]*',
             'word_literal': r'0X[\dA-F]{4}',
             'byte_literal': r'0X[\dA-F]{2}',
             'word_reg': r'({})'.format(r'|'.join(self.keywords['word_registers'])),
@@ -187,6 +194,14 @@ class Tokenizer:
             Rule(
                 r'\.{}'.format(basic_patterns['identifier']),
                 'macro'
+            ),
+            Rule(
+                r'\${}'.format(basic_patterns['var_name']),
+                'variable'
+            ),
+            Rule(
+                r'\$\${}'.format(basic_patterns['var_name']),
+                'system_variable'
             ),
             Rule(
                 r'\^{}'.format(basic_patterns['word_literal']),
@@ -321,6 +336,18 @@ class CaseHandler:
         return Case(
             TokenType.MACRO,
             macro_name,
+        )
+
+    def _case_variable(self):
+        return Case(
+            TokenType.VARIABLE,
+            self.original_value,
+        )
+
+    def _case_system_variable(self):
+        return Case(
+            TokenType.SYSTEM_VARIABLE,
+            self.original_value,
         )
 
     def _case_address_word_literal(self):
