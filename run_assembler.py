@@ -57,7 +57,15 @@ def _set_logging(verbosity):
     if verbosity > 2:
         verbosity = 2
     utils.config_loggers({
+        '__main__': {
+            'name': 'Assembler',
+            'level': levels['asm'][verbosity],
+        },
         'assembler.assembler': {
+            'name': 'Assembler',
+            'level': levels['asm'][verbosity],
+        },
+        'assembler.macros': {
             'name': 'Assembler',
             'level': levels['asm'][verbosity],
         },

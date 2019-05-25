@@ -110,6 +110,11 @@ def _set_logging(verbosity):
     if verbosity > 5:
         verbosity = 5
     utils.config_loggers({
+        '__main__': {
+            'name': 'Aldebaran',
+            'level': levels['ald'][verbosity],
+            'color': '0;31',
+        },
         'hardware.aldebaran': {
             'name': 'Aldebaran',
             'level': levels['ald'][verbosity],

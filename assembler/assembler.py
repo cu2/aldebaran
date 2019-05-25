@@ -10,6 +10,7 @@ from instructions.operands import get_operand_opcode
 from utils import utils
 from utils.errors import AldebaranError
 from utils.executable import Executable
+from .macros import MACRO_SET, MacroError, VariableError
 from .tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
 
 
@@ -30,7 +31,7 @@ class Assembler:
             inst.__name__: (opcode, inst)
             for opcode, inst in instruction_set
         }
-        self.macro_names = ['DAT', 'DATN', 'CONST']
+        self.macro_names = list(MACRO_SET.keys())
         self.word_registers = registers['word']
         self.byte_registers = registers['byte']
         self.keywords = set(self.instruction_names + self.macro_names + self.word_registers + self.byte_registers)
@@ -211,59 +212,12 @@ class Assembler:
         return opcode
 
     def _parse_macro(self, macro_name, args, source_line, line_number, opcode_pos):
-        if macro_name == 'DAT':
-            opcode = []
-            args = self._substitute_variables(args, source_line, line_number)
-            for arg in args:
-                if arg.type == TokenType.STRING_LITERAL:
-                    opcode += list(arg.value.encode('utf-8'))
-                elif arg.type == TokenType.BYTE_LITERAL:
-                    opcode.append(arg.value)
-                elif arg.type == TokenType.WORD_LITERAL:
-                    opcode += utils.word_to_binary(arg.value)
-                else:
-                    _raise_error(source_line, line_number, arg.pos, 'Parameter of macro DAT must be a byte, word or string literal, not {}'.format(arg.type), MacroError)
-            return opcode
-
-        if macro_name == 'DATN':
-            if len(args) != 2:
-                _raise_error(source_line, line_number, None, 'Macro DATN requires exactly 2 parameters, not {}'.format(len(args)), MacroError)
-            args = self._substitute_variables(args, source_line, line_number)
-            repeat_arg, value_arg = args
-            if repeat_arg.type not in {TokenType.BYTE_LITERAL, TokenType.WORD_LITERAL}:
-                _raise_error(source_line, line_number, repeat_arg.pos, 'The first parameter of macro DATN must be a byte or word literal, not {}'.format(repeat_arg.type), MacroError)
-            repeat_number = repeat_arg.value
-            if value_arg.type not in {TokenType.BYTE_LITERAL, TokenType.WORD_LITERAL, TokenType.STRING_LITERAL}:
-                _raise_error(source_line, line_number, value_arg.pos, 'The second parameter of macro DATN must be a byte, word or string literal, not {}'.format(value_arg.type), MacroError)
-            opcode = []
-            for _ in range(repeat_number):
-                if value_arg.type == TokenType.STRING_LITERAL:
-                    opcode += list(value_arg.value.encode('utf-8'))
-                elif value_arg.type == TokenType.BYTE_LITERAL:
-                    opcode.append(value_arg.value)
-                else:
-                    opcode += utils.word_to_binary(value_arg.value)
-            return opcode
-
-        if macro_name == 'CONST':
-            if len(args) != 2:
-                _raise_error(source_line, line_number, None, 'Macro CONST requires exactly 2 parameters, not {}'.format(len(args)), MacroError)
-            var_arg, value_arg = args
-            if var_arg.type != TokenType.VARIABLE:
-                _raise_error(source_line, line_number, var_arg.pos, 'The first parameter of macro CONST must be a variable, not {}'.format(var_arg.type), MacroError)
-            var_name = var_arg.value
-            if var_name in self.consts:
-                _raise_error(source_line, line_number, var_arg.pos, 'Variable {} already defined as {}.'.format(var_name, self.consts[var_name]), VariableError)
-
-            if value_arg.type == TokenType.VARIABLE:
-                value_arg = self._substitute_variable(value_arg, source_line, line_number)
-            if value_arg.type not in {TokenType.BYTE_LITERAL, TokenType.WORD_LITERAL, TokenType.STRING_LITERAL}:
-                _raise_error(source_line, line_number, value_arg.pos, 'The second parameter of macro CONST must be a byte, word or string literal, not {}'.format(value_arg.type), MacroError)
-
-            self.consts[var_name] = value_arg
-            return []
-
-        _raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)
+        try:
+            macro_class = MACRO_SET[macro_name]
+        except KeyError:
+            _raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)
+        macro = macro_class(self, args, source_line, line_number, opcode_pos)
+        return macro.run()
 
     def _parse_operands(self, args, source_line, line_number, opcode_pos):
         operands = []
@@ -271,7 +225,7 @@ class Assembler:
             if arg.type == TokenType.STRING_LITERAL:
                 _raise_error(source_line, line_number, arg.pos, 'String literal cannot be instruction operand: {}'.format(arg.value), OperandError)
             if arg.type == TokenType.VARIABLE:
-                arg = self._substitute_variable(arg, source_line, line_number)
+                arg = self.substitute_variable(arg, source_line, line_number)
             if arg.type in LABEL_REFERENCE_TYPES:
                 arg = self._substitute_label(arg, source_line, line_number, opcode_pos)
             try:
@@ -322,7 +276,10 @@ class Assembler:
             arg.pos,
         )
 
-    def _substitute_variable(self, arg, source_line, line_number):
+    def substitute_variable(self, arg, source_line, line_number):
+        '''
+        Substitute variable with its value (token)
+        '''
         assert arg.type == TokenType.VARIABLE
         try:
             new_token = self.consts[arg.value]
@@ -334,9 +291,12 @@ class Assembler:
             arg.pos,
         )
 
-    def _substitute_variables(self, args, source_line, line_number):
+    def substitute_variables(self, args, source_line, line_number):
+        '''
+        Substitute variables in a list of argument tokens
+        '''
         return [
-            self._substitute_variable(arg, source_line, line_number) if arg.type == TokenType.VARIABLE else arg
+            self.substitute_variable(arg, source_line, line_number) if arg.type == TokenType.VARIABLE else arg
             for arg in args
         ]
 
@@ -370,15 +330,7 @@ class LabelError(AssemblerError):
     pass
 
 
-class VariableError(AssemblerError):
-    pass
-
-
 class ParserError(AssemblerError):
-    pass
-
-
-class MacroError(AssemblerError):
     pass
 
 
