@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from instructions.instruction_set.data_transfer import MOV
 from instructions.operands import get_operand_opcode, InvalidWriteOperationError
-from utils.tokenizer import Token, TokenType
+from assembler.tokenizer import Token, TokenType
 
 
 class TestGetOperand(unittest.TestCase):

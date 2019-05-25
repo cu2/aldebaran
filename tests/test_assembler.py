@@ -1,10 +1,10 @@
 import logging
 import unittest
 
-from assembler import Assembler, AssemblerError
+from assembler.assembler import Assembler, AssemblerError
+from assembler.tokenizer import Token, TokenType, Reference
 from instructions import instruction_set
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS, get_operand_opcode
-from utils.tokenizer import Token, TokenType, Reference
 
 
 class TestAssembler(unittest.TestCase):

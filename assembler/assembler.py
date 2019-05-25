@@ -4,52 +4,18 @@ Assemble one or more source code files to executable files
 Usage: python assembler.py <file>+
 '''
 
-import argparse
 from enum import Enum
 import logging
 import os
 
-from instructions.instruction_set import INSTRUCTION_SET
-from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS, get_operand_opcode
+from instructions.operands import get_operand_opcode
 from utils import utils
 from utils.errors import AldebaranError
 from utils.executable import Executable
-from utils.tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
+from .tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
 
 
 logger = logging.getLogger(__name__)
-
-
-def main():
-    '''
-    Entry point of script
-    '''
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        'file',
-        nargs='+',
-        help='ALD source code file'
-    )
-    parser.add_argument(
-        '-v', '--verbose',
-        action='count',
-        default=0,
-        help='Verbosity'
-    )
-    args = parser.parse_args()
-    _set_logging(args.verbose)
-    try:
-        assembler = Assembler(
-            instruction_set=INSTRUCTION_SET,
-            registers={
-                'byte': BYTE_REGISTERS,
-                'word': WORD_REGISTERS,
-            },
-        )
-        for source_file in args.file:
-            assembler.assemble_file(source_file)
-    except AldebaranError as ex:
-        logger.error(ex)
 
 
 class Assembler:
@@ -396,26 +362,6 @@ def _raise_error(code, line_number, pos, error_message, exception):
     raise exception(error_message)
 
 
-def _set_logging(verbosity):
-    levels = {
-        'asm': 'IDD',
-        'tok': 'EED',
-    }
-    if verbosity > 2:
-        verbosity = 2
-    utils.config_loggers({
-        '__main__': {
-            'name': 'Assembler',
-            'level': levels['asm'][verbosity],
-        },
-        'utils.tokenizer': {
-            'name': 'Tokenizer',
-            'level': levels['tok'][verbosity],
-            'color': '1;30',
-        },
-    })
-
-
 # pylint: disable=missing-docstring
 
 class AssemblerError(AldebaranError):
@@ -440,7 +386,3 @@ class MacroError(AssemblerError):
 
 class OperandError(AssemblerError):
     pass
-
-
-if __name__ == '__main__':
-    main()

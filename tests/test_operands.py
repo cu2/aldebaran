@@ -11,7 +11,7 @@ from instructions.operands import (
     InvalidTokenError,
     InvalidOperandError, InvalidWriteOperationError, InsufficientOperandBufferError,
 )
-from utils.tokenizer import Token, Reference, TokenType
+from assembler.tokenizer import Token, Reference, TokenType
 from utils.utils import WordOutOfRangeError, ByteOutOfRangeError
 
 

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from utils.tokenizer import Tokenizer, Token, Reference, TokenType,\
+from assembler.tokenizer import Tokenizer, Token, Reference, TokenType,\
     UnexpectedCharacterError, InvalidStringLiteralError, UnknownMacroError
 from instructions.operands import WORD_REGISTERS, BYTE_REGISTERS
 

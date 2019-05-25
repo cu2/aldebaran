@@ -7,7 +7,7 @@ from enum import Enum
 
 from utils import utils
 from utils.errors import AldebaranError
-from utils.tokenizer import TokenType
+from assembler.tokenizer import TokenType
 
 
 Operand = namedtuple('Operand', [

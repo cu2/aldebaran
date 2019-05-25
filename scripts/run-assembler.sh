@@ -11,4 +11,4 @@ fi
 
 . "${ROOT_DIR}/virtualenv/bin/activate"
 
-exec python "${ROOT_DIR}/assembler.py" "$@"
+exec python "${ROOT_DIR}/run_assembler.py" "$@"
