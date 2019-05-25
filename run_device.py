@@ -1,5 +1,7 @@
 '''
-Device runner script
+Run device
+
+Usage: python run_device.py <device_name> <ioport_number>
 '''
 
 import argparse

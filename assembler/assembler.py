@@ -1,7 +1,5 @@
 '''
-Assemble one or more source code files to executable files
-
-Usage: python assembler.py <file>+
+Assembler
 '''
 
 from enum import Enum
