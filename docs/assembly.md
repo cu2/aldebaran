@@ -229,8 +229,91 @@ mov ax 0x1234
 .const $other_var 0x1234
 ```
 
-Important: variables defined by `.CONST` cannot be redefined, so this is invalid after the above line:
+Important: variables defined by `.CONST`, `.PARAM` and `.VAR` cannot be redefined, so this is invalid after the above line:
 
 ```
 .const $var 0xABCD
+```
+
+### .PARAM `<name>`
+
+Used for defining function parameters. It can only be used in a "scope": between an `ENTER` and an `LVRET` instruction. For more details, see [Calling convention](calling-convention.md).
+
+Typical usage:
+
+```
+enter 0x04 0x00
+.param $p1
+.param $p2
+# ...
+# $p1 will be substituted with [BP+0x09]
+# $p2 will be substituted with [BP+0x07]
+# ...
+lvret
+```
+
+For byte parameters, use `.PARAMB`:
+
+```
+enter 0x02 0x00
+.paramb $p1
+.paramb $p2
+# ...
+# $p1 will be substituted with [BP+0x08]
+# $p2 will be substituted with [BP+0x07]
+# ...
+lvret
+```
+
+Important: variables defined by `.CONST`, `.PARAM` and `.VAR` cannot be redefined.
+
+### .VAR `<name>` `[<default_value>]`
+
+Used for defining local variables in functions. It can only be used in a "scope": between an `ENTER` and an `LVRET` instruction. For more details, see [Calling convention](calling-convention.md).
+
+Typical usage:
+
+```
+enter 0x00 0x04
+.var $v1
+.var $v2
+# ...
+# $v1 will be substituted with [BP-0x01]
+# $v2 will be substituted with [BP-0x03]
+# ...
+lvret
+```
+
+For byte variables, use `.VARB`:
+
+```
+enter 0x00 0x02
+.varb $v1
+.varb $v2
+# ...
+# $v1 will be substituted with [BP]
+# $v2 will be substituted with [BP-0x01]
+# ...
+lvret
+```
+
+Important: variables defined by `.CONST`, `.PARAM` and `.VAR` cannot be redefined.
+
+If `<default_value>` is given, a `MOV` instruction will be inserted:
+
+```
+enter 0x00 0x04
+.var $v1 0x1234
+.var $v2
+# ...
+lvret
+```
+
+will become:
+
+```
+enter 0x00 0x04
+mov $v1 0x1234
+# ...
+lvret
 ```

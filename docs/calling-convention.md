@@ -26,6 +26,21 @@ The callee sets up the stack frame with the `ENTER` instruction. The first opera
 
 This way the call stack can be easily mapped (for debugging), not to mention accessing parameters and local variables with `BP`. Parameters can be accessed via `[BP+0x07]`, `[BP+0x09]`... Local variables via `[BP-0x01]`, `[BP-0x03]`...
 
+For easier access, you can use the `.PARAM` and `.VAR` macros in the callee:
+
+```
+ENTER 0x04 0x??  # 4 bytes for parameters, ?? bytes for local variables
+.PARAM $param1
+.PARAM $param2
+# access param1 in $param1
+# access param2 in $param2
+# do stuff
+# put return value in AX (and/or BX, CX, DX)
+LVRET
+```
+
+See [Assembly language](assembly.md) for more details.
+
 The stack frame for this single call looks like this:
 
 ```
