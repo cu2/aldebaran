@@ -191,7 +191,7 @@ class Assembler:
         if inst_name is not None:
             line_opcode = self._parse_instruction(inst_name, args, source_line, line_number, opcode_pos)
         elif macro_name is not None:
-            line_opcode = self._parse_macro(macro_name, args, source_line, line_number, opcode_pos)
+            line_opcode = self._parse_macro(macro_name, args, source_line, line_number)
         else:
             line_opcode = []
         return line_opcode
@@ -211,13 +211,13 @@ class Assembler:
             opcode += operand_opcode
         return opcode
 
-    def _parse_macro(self, macro_name, args, source_line, line_number, opcode_pos):
+    def _parse_macro(self, macro_name, args, source_line, line_number):
         try:
             macro_class = MACRO_SET[macro_name]
         except KeyError:
             _raise_error(source_line, line_number, None, 'Unknown macro: {}'.format(macro_name), MacroError)
-        macro = macro_class(self, args, source_line, line_number, opcode_pos)
-        return macro.run()
+        macro = macro_class(self, source_line, line_number)
+        return macro.run(args)
 
     def _parse_operands(self, args, source_line, line_number, opcode_pos):
         operands = []
