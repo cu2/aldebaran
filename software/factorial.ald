@@ -4,22 +4,23 @@
 
 
 # MAIN
+        .CONST $MAX_CNT 0x08
 
 START:
-        MOV [COUNTER] 0x0000
+        MOV [COUNTER]B 0x00
 
 LOOP:
-        # AX = FACT([COUNTER]):
-        PUSH [COUNTER]
+        # AX = FACT([COUNTER]B):
+        PUSH [COUNTER]B
         CALL FACT
 
-        PRINT [COUNTER]
+        PRINT [COUNTER]B
         PRINTCHAR 0x21  # !
         PRINTCHAR 0x3D  # =
         PRINT AX
         PRINTCHAR 0x20  # ' '
-        INC [COUNTER] 0x0001
-        JLE [COUNTER] [MAX_CNT] LOOP
+        INC [COUNTER]B 0x01
+        JLE [COUNTER]B $MAX_CNT LOOP
         JMP START
 
 # END MAIN
@@ -28,21 +29,22 @@ LOOP:
 # SUB FACT (param): AX
 FACT:
         # SUB PROLOGUE:
-        ENTER 0x02 0x00  # 2 bytes for params, 0 bytes for local vars
+        ENTER 0x01 0x00
+        .PARAMB $param
 
         # SUBMAIN:
-        JNZ [BP+0x07] NONZERO  # param == 0?
+        JNZ $param NONZERO  # param == 0?
         MOV AX 0x0001  # AX = 1
         JMP EPILOGUE
 
 NONZERO:
-        SUB AX [BP+0x07] 0x0001  # AX = param - 1
+        SUB AL $param 0x01  # AL = param - 1
 
-        # AX = FACT(AX) = FACT(param - 1)
-        PUSH AX
+        # AX = FACT(AL) = FACT(param - 1)
+        PUSH AL
         CALL FACT
 
-        MUL AX [BP+0x07] AX  # AX = param * FACT(param - 1)
+        MUL AX $param AX  # AX = param * FACT(param - 1)
 
 EPILOGUE:
         LVRET
@@ -52,7 +54,6 @@ EPILOGUE:
 
 # DATA
 
-COUNTER:        .DAT 0x0000
-MAX_CNT:        .DAT 0x0008
+COUNTER:        .DAT 0x00
 
 # END DATA

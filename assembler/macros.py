@@ -4,9 +4,10 @@ Assembler macros
 
 import logging
 
+from instructions.operands import get_operand_opcode
 from utils import utils
 from utils.errors import AldebaranError
-from .tokenizer import TokenType
+from .tokenizer import Token, TokenType, Reference
 
 
 logger = logging.getLogger(__name__)
@@ -166,18 +167,117 @@ class CONST(Macro):
     ]
 
     def do(self, params):
-        var_param, value_param = params
-        var_name = var_param.value
-        if var_name in self.assembler.consts:
-            self._raise_error(var_param.pos, 'Variable {} already defined as {}.'.format(var_name, self.assembler.consts[var_name]), VariableError)
-        self.assembler.consts[var_name] = value_param
+        name_param, value_param = params
+        if self.assembler.is_variable_defined(name_param.value):
+            self._raise_error(name_param.pos, 'Variable {} already defined'.format(name_param.value), VariableError)
+        self.assembler.consts[name_param.value] = value_param
         return []
+
+
+class PARAM(Macro):
+    '''
+    .PARAM <name>
+
+    Define word parameter in a scope
+    '''
+
+    param_count = (1, 1)
+    length = 2
+    param_types = [
+        [TokenType.VARIABLE],
+    ]
+
+    def do(self, params):
+        if self.assembler.current_scope is None:
+            self._raise_macro_error(None, 'Macro {} must be in a scope'.format(self.name))
+        name_param = params[0]
+        if self.assembler.is_variable_defined(name_param.value):
+            self._raise_error(name_param.pos, 'Variable {} already defined'.format(name_param.value), VariableError)
+
+        try:
+            self.assembler.current_scope.add_parameter(name_param.value, self.length)
+        except ScopeError as ex:
+            self._raise_error(None, str(ex), ScopeError)
+        return []
+
+
+class PARAMB(PARAM):
+    '''
+    .PARAMB <name>
+
+    Define byte parameter in a scope
+    '''
+
+    param_count = (1, 1)
+    length = 1
+
+
+class VAR(Macro):
+    '''
+    .VAR <name> [default_value]
+
+    Define local word variable in a scope (with optional default value)
+    '''
+
+    param_count = (1, 2)
+    length = 2
+    param_types = [
+        [TokenType.VARIABLE],
+    ]
+
+    def do(self, params):
+        if self.assembler.current_scope is None:
+            self._raise_macro_error(None, 'Macro {} must be in a scope'.format(self.name))
+        if len(params) == 1:
+            name_param = params[0]
+            default_value_param = None
+        else:
+            name_param, default_value_param = params
+            if default_value_param.type == TokenType.VARIABLE:
+                default_value_param = self.assembler.substitute_variable(default_value_param, self.source_line, self.line_number)
+            self._validate_parameter(default_value_param, [TokenType.WORD_LITERAL if self.length == 2 else TokenType.BYTE_LITERAL], 2)
+
+        if self.assembler.is_variable_defined(name_param.value):
+            self._raise_error(name_param.pos, 'Variable {} already defined'.format(name_param.value), VariableError)
+
+        try:
+            self.assembler.current_scope.add_variable(name_param.value, self.length)
+        except ScopeError as ex:
+            self._raise_error(None, str(ex), ScopeError)
+
+        if default_value_param is not None:
+            # MOV $var default_value
+            inst_opcode, _ = self.assembler.instruction_mapping['MOV']
+            opcode = [inst_opcode]
+            opcode += get_operand_opcode(self.assembler.current_scope.get_value(name_param.value))
+            opcode += get_operand_opcode(Token(
+                default_value_param.type,
+                default_value_param.value,
+                None,
+            ))
+            return opcode
+        return []
+
+
+class VARB(VAR):
+    '''
+    .VARB <name> [default_value]
+
+    Define local byte variable in a scope (with optional default value)
+    '''
+
+    param_count = (1, 2)
+    length = 1
 
 
 MACRO_SET = {
     'DAT': DAT,
     'DATN': DATN,
     'CONST': CONST,
+    'PARAM': PARAM,
+    'PARAMB': PARAMB,
+    'VAR': VAR,
+    'VARB': VARB,
 }
 
 
@@ -202,4 +302,8 @@ class MacroError(AldebaranError):
 
 
 class VariableError(MacroError):
+    pass
+
+
+class ScopeError(MacroError):
     pass

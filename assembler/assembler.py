@@ -1,5 +1,5 @@
 '''
-Assembler
+Assembler related stuff: Assembler, Scope
 '''
 
 from enum import Enum
@@ -10,7 +10,7 @@ from instructions.operands import get_operand_opcode
 from utils import utils
 from utils.errors import AldebaranError
 from utils.executable import Executable
-from .macros import MACRO_SET, MacroError, VariableError
+from .macros import MACRO_SET, MacroError, VariableError, ScopeError
 from .tokenizer import Tokenizer, Token, TokenType, Reference, ARGUMENT_TYPES, LABEL_REFERENCE_TYPES
 
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class Assembler:
     '''
-    Assembler
+    Assembler: convert source code to opcode
     '''
 
     def __init__(self, instruction_set, registers):
@@ -105,6 +105,7 @@ class Assembler:
         self.opcode = []
         self.augmented_opcode = []
         self.consts = {}
+        self.current_scope = None
 
     def _tokenize(self):
         tokenized_code = []
@@ -141,6 +142,7 @@ class Assembler:
         self.opcode = []
         self.augmented_opcode = []
         self.consts = {}
+        self.current_scope = None
         opcode_pos = 0
         for line_number, source_line, tokens in tokenized_code:
             line_opcode = self._parse_line(line_number, source_line, tokens, opcode_pos)
@@ -206,6 +208,16 @@ class Assembler:
         # TODO: check inst.oplens
         # if None: no check
         # otherwise list of strings of B|W|*
+
+        if inst_name == 'ENTER':
+            if self.current_scope is not None:
+                _log_error(source_line, line_number, None, 'ENTER instruction within scope.')
+            self.current_scope = Scope(args)
+        if inst_name == 'LVRET':
+            if self.current_scope is None:
+                _log_error(source_line, line_number, None, 'LVRET instruction not in scope.')
+            self.current_scope = None
+
         opcode = [inst_opcode]
         for operand_opcode in operands:
             opcode += operand_opcode
@@ -276,6 +288,16 @@ class Assembler:
             arg.pos,
         )
 
+    def is_variable_defined(self, name):
+        '''
+        Return if variable is defined (with .CONST, .PARAM or .VAR)
+        '''
+        if name in self.consts:
+            return True
+        if self.current_scope is not None:
+            return self.current_scope.is_variable_defined(name)
+        return False
+
     def substitute_variable(self, arg, source_line, line_number):
         '''
         Substitute variable with its value (token)
@@ -284,7 +306,12 @@ class Assembler:
         try:
             new_token = self.consts[arg.value]
         except KeyError:
-            _raise_error(source_line, line_number, arg.pos, 'Unknown variable reference: {}'.format(arg.value), VariableError)
+            try:
+                if self.current_scope is None:
+                    raise ScopeError('No scope')
+                new_token = self.current_scope.get_value(arg.value)
+            except ScopeError:
+                _raise_error(source_line, line_number, arg.pos, 'Unknown variable reference: {}'.format(arg.value), VariableError)
         return Token(
             new_token.type,
             new_token.value,
@@ -309,15 +336,111 @@ ParserState = Enum('ParserState', [  # pylint: disable=invalid-name
 ])
 
 
+class Scope:
+    '''
+    Scope between ENTER and LVRET that stores local variables and parameters
+    '''
+
+    def __init__(self, enter_args):
+        assert enter_args[0].type == TokenType.BYTE_LITERAL
+        assert enter_args[1].type == TokenType.BYTE_LITERAL
+        self.max_byte_count_of_parameters = enter_args[0].value
+        self.max_byte_count_of_variables = enter_args[1].value
+        self.byte_count_of_parameters = 0
+        self.byte_count_of_variables = 0
+        self._variables = []
+        self._parameters = []
+
+    def add_parameter(self, name, size):
+        '''
+        Add parameter to scope
+        '''
+        if size not in {1, 2}:
+            raise ScopeError('Parameter size must be 1 or 2 bytes')
+        if self.byte_count_of_parameters + size > self.max_byte_count_of_parameters:
+            raise ScopeError('Too many parameters')
+        if self.is_variable_defined(name):
+            raise ScopeError('Parameter {} already defined'.format(name))
+
+        self.byte_count_of_parameters += size
+        self._parameters.append((name, size))
+
+    def add_variable(self, name, size):
+        '''
+        Add local variable to scope
+        '''
+        if size not in {1, 2}:
+            raise ScopeError('Variable size must be 1 or 2 bytes')
+        if self.byte_count_of_variables + size > self.max_byte_count_of_variables:
+            raise ScopeError('Too many local variables')
+        if self.is_variable_defined(name):
+            raise ScopeError('Variable {} already defined'.format(name))
+
+        self.byte_count_of_variables += size
+        self._variables.append((name, size))
+
+    def get_value(self, name):
+        '''
+        Get value of parameter/variable
+        '''
+        try:
+            offset, size = self._get_param(name)
+        except ScopeError:
+            offset, size = self._get_var(name)
+        return Token(
+            TokenType.ABS_REF_REG,
+            Reference('BP', offset, 'B' if size == 1 else 'W'),
+            0,
+        )
+
+    def is_variable_defined(self, name):
+        '''
+        Return if parameter or local variable is defined
+        '''
+        try:
+            self._get_param(name)
+        except ScopeError:
+            try:
+                self._get_var(name)
+            except ScopeError:
+                return False
+        return True
+
+    def _get_param(self, name):
+        offset = 0
+        for param_name, param_size in self._parameters:
+            if param_name == name:
+                return 6 + self.max_byte_count_of_parameters - offset - (param_size - 1), param_size
+            offset += param_size
+        raise ScopeError('No parameter found')
+
+    def _get_var(self, name):
+        offset = 0
+        for var_name, var_size in self._variables:
+            offset += var_size
+            if var_name == name:
+                return 1 - offset, var_size
+        raise ScopeError('No local variable found')
+
+
 MAX_LINE_OPCODE_LENGTH = 15
 
 
 def _raise_error(code, line_number, pos, error_message, exception):
+    _log_error_position(code, line_number, pos)
+    raise exception(error_message)
+
+
+def _log_error(code, line_number, pos, error_message):
+    _log_error_position(code, line_number, pos)
+    logger.error(error_message)
+
+
+def _log_error_position(code, line_number, pos):
     logger.error('ERROR in line %d:', line_number)
     logger.error(code)
     if pos is not None:
         logger.error(' ' * pos + '^')
-    raise exception(error_message)
 
 
 # pylint: disable=missing-docstring

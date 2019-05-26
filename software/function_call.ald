@@ -29,18 +29,23 @@ MAIN:
 
 SUBROUTINE:
         # sub prologue:
-        ENTER 0x04 0x06  # 4 bytes for params, 6 bytes for local vars
+        ENTER 0x04 0x06
+        .PARAM $param1
+        .PARAM $param2
+        .VAR $var1 0x2344
+        .VAR $var2
+        .VAR $var3
 
         # sub main:
-        PRINT [BP+0x07]  # param2
-        PRINT [BP+0x09]  # param1
-        MOV [BP-0x01] 0x2345  # var1 = 2345
-        MOV [BP-0x03] 0x6789  # var2 = 6789
-        MOV [BP-0x05] 0xBCDE  # var3 = BCDE
-        PRINT [BP-0x01]  # var1
-        PRINT [BP-0x03]  # var2
-        PRINT [BP-0x05]  # var3
-        MOV AX [BP-0x05]  # retval = var3
+        PRINT $param2
+        PRINT $param1
+        INC $var1 0x0001
+        MOV $var2 0x6789
+        MOV $var3 0xBCDE
+        PRINT $var1
+        PRINT $var2
+        PRINT $var3
+        MOV AX $var3  # retval
 
         # sub epilogue:
         LVRET
