@@ -38,7 +38,7 @@ class Device:
         self.device_type, self.device_id = device_descriptor
         self.aldebaran_host, self.aldebaran_device_controller_port = aldebaran_address
         self.device_host, self.device_port = device_address
-        self._server = GenericServer((self.device_host, self.device_port), GenericRequestHandler, self._handle_incoming_request)
+        self._server = GenericServer((self.device_host, self.device_port), GenericRequestHandler, None, self._handle_incoming_request)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_queue = queue.Queue()
         self._stop_event = threading.Event()

@@ -31,7 +31,7 @@ class DeviceController:
         self._device_status_table = [0] * system_addresses['device_status_table_size']
         self.output_queue = queue.Queue()
         self._stop_event = threading.Event()
-        self._server = GenericServer((host, port), GenericRequestHandler, self._handle_incoming_request)
+        self._server = GenericServer((host, port), GenericRequestHandler, None, self._handle_incoming_request)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
         self._output_thread = threading.Thread(target=self._output_thread_run)
         self._ping_thread = threading.Thread(target=self._ping_thread_run)

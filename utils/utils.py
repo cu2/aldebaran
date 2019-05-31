@@ -124,11 +124,18 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
     Request handler for Device Controller and devices
     '''
 
+    def do_GET(self):  # pylint: disable=invalid-name
+        '''
+        Get response from get_handler_function and return as JSON
+        '''
+        status, json_response = self.server.get_handler_function(self.path)
+        self._send_json(status, json_response)
+
     def do_POST(self):  # pylint: disable=invalid-name
         '''
-        Get response from request_handler_function and return as JSON
+        Get response from post_handler_function and return as JSON
         '''
-        status, json_response = self.server.request_handler_function(self.path, self.headers, self.rfile)
+        status, json_response = self.server.post_handler_function(self.path, self.headers, self.rfile)
         self._send_json(status, json_response)
 
     def log_message(self, format, *args):  # pylint: disable=redefined-builtin
@@ -150,9 +157,10 @@ class GenericServer(HTTPServer):
     Server for Device Controller and devices
     '''
 
-    def __init__(self, server_address, request_handler, request_handler_function):
+    def __init__(self, server_address, request_handler, get_handler_function, post_handler_function):
         HTTPServer.__init__(self, server_address, request_handler)
-        self.request_handler_function = request_handler_function
+        self.get_handler_function = get_handler_function
+        self.post_handler_function = post_handler_function
 
 
 # pylint: disable=missing-docstring
