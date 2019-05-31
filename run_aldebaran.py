@@ -16,6 +16,7 @@ from hardware import (
     InterruptController,
     IOPort, DeviceController,
     Timer,
+    Debugger,
 )
 from instructions.instruction_set import INSTRUCTION_SET
 from utils import config
@@ -47,6 +48,11 @@ def main():
         default=0,
         help='Verbosity'
     )
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='Debugger'
+    )
     args = parser.parse_args()
     _set_logging(args.verbose)
 
@@ -57,6 +63,10 @@ def main():
             for ioport_number in range(config.number_of_ioports)
         ]
         clock_freq = args.clock
+        if args.debug:
+            debugger = Debugger(config.debugger_host, config.debugger_port)
+        else:
+            debugger = None
         aldebaran = Aldebaran({
             'clock': Clock(clock_freq),
             'registers': Registers(config.system_addresses['bottom_of_stack']),
@@ -77,6 +87,7 @@ def main():
                 ioports,
             ),
             'timer': Timer(config.timer_freq, config.number_of_subtimers),
+            'debugger': debugger,
         })
         aldebaran.boot(boot_file)
     except AldebaranError as ex:

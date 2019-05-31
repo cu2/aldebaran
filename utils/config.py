@@ -14,6 +14,9 @@ device_controller_port = 0
 device_host = 'localhost'
 device_base_port = 35016
 
+debugger_host = 'localhost'
+debugger_port = 8000
+
 
 # Virtual config
 

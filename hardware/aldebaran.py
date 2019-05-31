@@ -32,6 +32,7 @@ class Aldebaran:
         self.interrupt_controller = components['interrupt_controller']
         self.device_controller = components['device_controller']
         self.timer = components['timer']
+        self.debugger = components['debugger']
         # architecture:
         self.cpu.register_architecture(
             self.registers,
@@ -46,6 +47,8 @@ class Aldebaran:
         self.timer.register_architecture(self.interrupt_controller)
         self.memory.register_architecture(self.ram, self.virtual_ram)
         self.virtual_ram.register_architecture(self.device_controller)
+        if self.debugger:
+            self.debugger.register_architecture(self.cpu, self.memory)
 
     def boot(self, boot_file):
         '''
@@ -67,6 +70,8 @@ class Aldebaran:
         Start device controller, timer and clock
         '''
         logger.info('Started.')
+        if self.debugger:
+            self.debugger.start()
         self.device_controller.start()
         self.timer.start()
         start_time = time.time()
@@ -76,6 +81,8 @@ class Aldebaran:
             stop_time = time.time()
             self.timer.stop()
             self.device_controller.stop()
+            if self.debugger:
+                self.debugger.stop()
             self._print_stats(start_time, stop_time)
 
     def _print_stats(self, start_time, stop_time):
