@@ -48,7 +48,7 @@ class Aldebaran:
         self.memory.register_architecture(self.ram, self.virtual_ram)
         self.virtual_ram.register_architecture(self.device_controller)
         if self.debugger:
-            self.debugger.register_architecture(self.cpu, self.memory)
+            self.debugger.register_architecture(self.cpu, self.clock, self.memory)
 
     def boot(self, boot_file):
         '''
