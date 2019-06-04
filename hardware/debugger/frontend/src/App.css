@@ -1,0 +1,21 @@
+body {
+    font-family: Courier, monospace;
+}
+
+.app-container {
+    display: flex;
+    justify-content: space-between;
+}
+.app-cpu {
+    flex: 0 1 50%;
+}
+.app-stack {
+    flex: 0 1 25%;
+}
+.app-memory {
+    flex: 0 1 25%;
+}
+
+.selected-memory-cell {
+    color: red;
+}
