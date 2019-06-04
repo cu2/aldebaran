@@ -9,9 +9,11 @@ from http import HTTPStatus
 from urllib.parse import urlparse, parse_qs
 
 from instructions.operands import WORD_REGISTERS, operand_to_str
+from utils import config
 from utils import utils
 from utils.errors import ArchitectureError
 from utils.utils import GenericRequestHandler, GenericServer
+from hardware.memory.memory import SegfaultError
 
 
 logger = logging.getLogger(__name__)
@@ -129,16 +131,29 @@ class Debugger:
         )
 
     def _get_memory(self, offset, length):
+        if offset >= config.memory_size or offset < 0:
+            return (
+                HTTPStatus.BAD_REQUEST,
+                {
+                    'error': 'Cannot access memory beyond 0000-{}'.format(utils.word_to_str(config.memory_size - 1)),
+                }
+            )
+        if offset + length > config.memory_size:
+            length = config.memory_size - offset
+
         first_address = offset
+        content = []
+        for idx in range(length):
+            try:
+                content.append(utils.byte_to_str(self.memory.read_byte(first_address + idx)))
+            except SegfaultError:
+                content.append(None)
         return (
             HTTPStatus.OK,
             {
                 'first_address': utils.word_to_str(first_address),
                 'last_address': utils.word_to_str(first_address + length - 1),
-                'content': [
-                    utils.byte_to_str(self.memory.read_byte(first_address + idx))
-                    for idx in range(length)
-                ],
+                'content': content,
             }
         )
 
