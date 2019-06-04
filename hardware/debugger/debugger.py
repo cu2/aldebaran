@@ -2,6 +2,7 @@
 Debugger to show Aldebaran's internal state
 '''
 
+import json
 import logging
 import threading
 from http import HTTPStatus
@@ -27,7 +28,7 @@ class Debugger:
     '''
 
     def __init__(self, host, port):
-        self._server = GenericServer((host, port), GenericRequestHandler, self._handle_incoming_request, None)
+        self._server = GenericServer((host, port), GenericRequestHandler, self._handle_get, self._handle_post)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
 
         self.cpu = None
@@ -64,9 +65,9 @@ class Debugger:
         self._input_thread.join()
         logger.info('Stopped.')
 
-    def _handle_incoming_request(self, path):
+    def _handle_get(self, path):
         '''
-        Handle incoming request from Debugger frontend, called by GenericRequestHandler
+        Handle incoming GET request from Debugger frontend, called by GenericRequestHandler
         '''
         parse_result = urlparse(path)
         path = parse_result.path
@@ -98,16 +99,18 @@ class Debugger:
         }
         registers['IP'] = utils.word_to_str(self.cpu.ip)
         registers['entry_point'] = utils.word_to_str(self.cpu.system_addresses['entry_point'])
-        if self.cpu.current_instruction:
-            current_instruction = {
-                'name': self.cpu.current_instruction.__class__.__name__,
+        if self.cpu.last_ip is not None:
+            last_ip = utils.word_to_str(self.cpu.last_ip)
+            last_instruction = {
+                'name': self.cpu.last_instruction.__class__.__name__,
                 'operands': [
                     operand_to_str(op)
-                    for op in self.cpu.current_instruction.operands
+                    for op in self.cpu.last_instruction.operands
                 ],
             }
         else:
-            current_instruction = None
+            last_ip = None
+            last_instruction = None
         return (
             HTTPStatus.OK,
             {
@@ -116,7 +119,8 @@ class Debugger:
                 'cpu': {
                     'halt': self.cpu.halt,
                     'shutdown': self.cpu.shutdown,
-                    'current_instruction': current_instruction,
+                    'last_instruction': last_instruction,
+                    'last_ip': last_ip,
                 },
                 'clock': {
                     'cycle_count': self.clock.cycle_count,
@@ -150,3 +154,33 @@ class Debugger:
                 for idx in range(length)
             ],
         }
+
+    def _handle_post(self, path, headers, rfile):
+        '''
+        Handle incoming POST request from Debugger frontend, called by GenericRequestHandler
+        '''
+        parse_result = urlparse(path)
+        path = parse_result.path
+        try:
+            request_body_length = int(headers.get('Content-Length'))
+        except TypeError:
+            return (HTTPStatus.LENGTH_REQUIRED, None)
+        data = rfile.read(request_body_length)
+        try:
+            data = json.loads(data)
+        except json.decoder.JSONDecodeError:
+            return (
+                HTTPStatus.BAD_REQUEST,
+                {
+                    'error': 'Could not parse data.',
+                }
+            )
+        if path == '/api/cpu/step':
+            self.clock.debugger_queue.put({
+                'action': 'step',
+                'data': data,
+            })
+            return (
+                HTTPStatus.OK,
+                {}
+            )

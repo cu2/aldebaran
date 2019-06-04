@@ -30,7 +30,8 @@ class CPU:
         self.halt_freq = halt_freq
         self.halt = False
         self.shutdown = False
-        self.current_instruction = None
+        self.last_ip = None
+        self.last_instruction = None
 
         self.registers = None
         self.stack = None
@@ -71,8 +72,9 @@ class CPU:
             self.memory.read_byte(self.ip + idx, silent=True)
             for idx in range(1, self.operand_buffer_size + 1)
         ]
-        self.current_instruction = self._parse_instruction(inst_opcode, operand_buffer)
-        next_ip = self.current_instruction.run()
+        self.last_ip = self.ip
+        self.last_instruction = self._parse_instruction(inst_opcode, operand_buffer)
+        next_ip = self.last_instruction.run()
         self.ip = next_ip
 
     def user_log(self, message, *args):

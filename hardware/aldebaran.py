@@ -76,7 +76,7 @@ class Aldebaran:
         self.timer.start()
         start_time = time.time()
         try:
-            self.clock.run()
+            self.clock.run(bool(self.debugger))
         finally:
             stop_time = time.time()
             self.timer.stop()
