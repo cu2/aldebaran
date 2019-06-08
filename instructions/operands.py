@@ -132,11 +132,13 @@ def parse_operand_buffer(operand_buffer, operand_count):
     '''
     Return:
     - list of operands (type=Operand)
+    - list of operand buffer indices (for debugging)
     - opcode_length (including instruction)
     from operand_buffer.
     Instructions use it when running.
     '''
     operands = []
+    operand_buffer_indices = []
     operand_buffer_idx = 0
     try:
         while True:
@@ -214,9 +216,10 @@ def parse_operand_buffer(operand_buffer, operand_count):
             else:
                 raise InvalidOperandError('Invalid operand type: {}'.format(optype))
             operands.append(Operand(oplen, optype, opreg, opvalue, opbase, opoffset))
+            operand_buffer_indices.append(operand_buffer_idx)
     except IndexError:
         raise InsufficientOperandBufferError(operand_buffer)
-    return operands, 1 + operand_buffer_idx
+    return operands, operand_buffer_indices, 1 + operand_buffer_idx
 
 
 def operand_to_str(operand):

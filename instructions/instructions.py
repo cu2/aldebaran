@@ -29,7 +29,7 @@ class Instruction:
 
     def __init__(self, cpu, operand_buffer):
         self.cpu = cpu
-        self.operands, self.opcode_length = parse_operand_buffer(operand_buffer, self.operand_count)
+        self.operands, self.operand_buffer_indices, self.opcode_length = parse_operand_buffer(operand_buffer, self.operand_count)
         self.ip = self.cpu.ip
 
     def __repr__(self):

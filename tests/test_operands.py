@@ -98,7 +98,7 @@ class TestGetOperandOpcode(unittest.TestCase):
 class TestParseOperandBuffer(unittest.TestCase):
 
     def test_value(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.VALUE),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -109,9 +109,10 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertEqual(operands[0].opvalue, 65535)
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [3])
         self.assertEqual(opcode_length, 4)
 
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.BYTE, OpType.VALUE),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -122,10 +123,11 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertEqual(operands[0].opvalue, 255)
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [2])
         self.assertEqual(opcode_length, 3)
 
     def test_address(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.ADDRESS),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -136,6 +138,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertEqual(operands[0].opvalue, -1)
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [3])
         self.assertEqual(opcode_length, 4)
 
         with self.assertRaises(InvalidOperandError):
@@ -145,7 +148,7 @@ class TestParseOperandBuffer(unittest.TestCase):
             ], 1)
 
     def test_register(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.REGISTER, 'BX'),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -156,9 +159,10 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [1])
         self.assertEqual(opcode_length, 2)
 
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.BYTE, OpType.REGISTER, 'AH'),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -169,6 +173,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertIsNone(operands[0].opbase)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [1])
         self.assertEqual(opcode_length, 2)
 
         with self.assertRaises(InvalidRegisterCodeError):
@@ -183,7 +188,7 @@ class TestParseOperandBuffer(unittest.TestCase):
             ], 1)
 
     def test_abs_ref(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.ABS_REF_REG, 'BX'),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -194,6 +199,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertIsNone(operands[0].opbase)
         self.assertEqual(operands[0].opoffset, -1)
+        self.assertListEqual(operand_buffer_indices, [2])
         self.assertEqual(opcode_length, 3)
 
         with self.assertRaises(InvalidRegisterCodeError):
@@ -203,7 +209,7 @@ class TestParseOperandBuffer(unittest.TestCase):
             ], 1)
 
     def test_rel_ref(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.REL_REF_WORD),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -214,9 +220,10 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertEqual(operands[0].opbase, -1)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [3])
         self.assertEqual(opcode_length, 4)
 
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.REL_REF_WORD_BYTE),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -227,9 +234,10 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertEqual(operands[0].opbase, -1)
         self.assertEqual(operands[0].opoffset, 255)
+        self.assertListEqual(operand_buffer_indices, [4])
         self.assertEqual(opcode_length, 5)
 
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.REL_REF_WORD_REG, 'BX'),
             0xFF, 0xFF, 0xFF, 0xFF,
         ], 1)
@@ -240,10 +248,11 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertIsNone(operands[0].opvalue)
         self.assertEqual(operands[0].opbase, -1)
         self.assertIsNone(operands[0].opoffset)
+        self.assertListEqual(operand_buffer_indices, [3])
         self.assertEqual(opcode_length, 4)
 
     def test_multiple_operands(self):
-        operands, opcode_length = parse_operand_buffer([
+        operands, operand_buffer_indices, opcode_length = parse_operand_buffer([
             _get_opbyte(OpLen.WORD, OpType.REGISTER, 'BX'),
             _get_opbyte(OpLen.WORD, OpType.VALUE),
             0xFF, 0xFF, 0xFF, 0xFF,
@@ -261,6 +270,7 @@ class TestParseOperandBuffer(unittest.TestCase):
         self.assertEqual(operands[1].opvalue, 65535)
         self.assertIsNone(operands[1].opbase)
         self.assertIsNone(operands[1].opoffset)
+        self.assertListEqual(operand_buffer_indices, [1, 4])
         self.assertEqual(opcode_length, 5)
 
     def test_not_enough_buffer(self):

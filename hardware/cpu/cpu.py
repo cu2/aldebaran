@@ -31,7 +31,6 @@ class CPU:
         self.halt = False
         self.shutdown = False
         self.last_ip = None
-        self.last_instruction = None
 
         self.registers = None
         self.stack = None
@@ -67,15 +66,36 @@ class CPU:
             time.sleep(1 / self.halt_freq)  # so it doesn't burn the host machine's CPU in turbo mode
             return
         self._mini_debugger()
-        inst_opcode = self.memory.read_byte(self.ip, silent=True)
+        inst_opcode, operand_buffer = self.read_instruction(self.ip)
+        instruction = self.parse_instruction(inst_opcode, operand_buffer)
+        self.last_ip = self.ip
+        self.ip = instruction.run()
+
+    def read_instruction(self, ip):
+        '''
+        Read opcode and operand buffer of instruction at IP
+        '''
+        inst_opcode = self.memory.read_byte(ip, silent=True)
         operand_buffer = [
-            self.memory.read_byte(self.ip + idx, silent=True)
+            self.memory.read_byte(ip + idx, silent=True)
             for idx in range(1, self.operand_buffer_size + 1)
         ]
-        self.last_ip = self.ip
-        self.last_instruction = self._parse_instruction(inst_opcode, operand_buffer)
-        next_ip = self.last_instruction.run()
-        self.ip = next_ip
+        return (inst_opcode, operand_buffer)
+
+    def parse_instruction(self, inst_opcode, operand_buffer):
+        '''
+        Parse opcode and operand buffer into instruction and operands
+        '''
+        try:
+            inst_class = self.instruction_opcode_mapping[inst_opcode]
+        except KeyError:
+            raise UnknownOpcodeError('Unknown opcode: {}'.format(utils.byte_to_str(inst_opcode)))
+        instruction = inst_class(self, operand_buffer)
+        logger.info('Instruction: %s %s', inst_class.__name__, ' '.join([
+            operands.operand_to_str(op)
+            for op in instruction.operands
+        ]))
+        return instruction
 
     def user_log(self, message, *args):
         '''
@@ -102,18 +122,6 @@ class CPU:
         '''
         self.registers.set_flag('interrupt', 0, silent=True)
         logger.debug('Hardware interrupts disabled')
-
-    def _parse_instruction(self, inst_opcode, operand_buffer):
-        try:
-            inst_class = self.instruction_opcode_mapping[inst_opcode]
-        except KeyError:
-            raise UnknownOpcodeError('Unknown opcode: {}'.format(utils.byte_to_str(inst_opcode)))
-        instruction = inst_class(self, operand_buffer)
-        logger.info('Instruction: %s %s', inst_class.__name__, ' '.join([
-            operands.operand_to_str(op)
-            for op in instruction.operands
-        ]))
-        return instruction
 
     def _check_hardware_interrupts(self):
         if self.interrupt_controller and self.registers.get_flag('interrupt', silent=True) == 1:
