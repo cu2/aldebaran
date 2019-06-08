@@ -1,6 +1,7 @@
 import React from 'react';
 import { Stack, StackType } from './Stack';
 import { Memory, MemoryType } from './Memory';
+import { Token } from './Token';
 import { decToHex } from './utils';
 import './App.css';
 
@@ -102,11 +103,34 @@ export class App extends React.Component<Props, State> {
           <div>halt = {internal.cpu.halt ? 'HALT' : '-'}</div>
           <div>shutdown = {internal.cpu.shutdown ? 'SHUTDOWN' : '-'}</div>
           <div>IP = {internal.registers.IP}</div>
+          <h2>Next instruction @ {internal.cpu.next_ip}</h2>
+          <div>
+            <Token
+              name={internal.cpu.next_instruction.name}
+              opcode={internal.cpu.next_instruction.opcode}
+            />
+            { internal.cpu.next_instruction.operands.map((operand: any, idx: number) =>
+              <Token
+                key={idx}
+                name={operand.name}
+                opcode={operand.opcode}
+              />
+            )}
+          </div>
           { internal.cpu.last_instruction ? <div>
             <h2>Last instruction @ {internal.cpu.last_ip}</h2>
             <div>
-              {internal.cpu.last_instruction.name}
-              { internal.cpu.last_instruction.operands.map((op: string, idx: number) => <span key={idx}> {op}</span>)}
+              <Token
+                name={internal.cpu.last_instruction.name}
+                opcode={internal.cpu.last_instruction.opcode}
+              />
+              { internal.cpu.last_instruction.operands.map((operand: any, idx: number) =>
+                <Token
+                  key={idx}
+                  name={operand.name}
+                  opcode={operand.opcode}
+                />
+              )}
             </div>
           </div> : null}
           <h2>Registers</h2>

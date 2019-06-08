@@ -101,18 +101,17 @@ class Debugger:
         }
         registers['IP'] = utils.word_to_str(self.cpu.ip)
         registers['entry_point'] = utils.word_to_str(self.cpu.system_addresses['entry_point'])
+
         if self.cpu.last_ip is not None:
+            last_instruction = self._get_instruction(self.cpu.last_ip)
             last_ip = utils.word_to_str(self.cpu.last_ip)
-            last_instruction = {
-                'name': self.cpu.last_instruction.__class__.__name__,
-                'operands': [
-                    operand_to_str(op)
-                    for op in self.cpu.last_instruction.operands
-                ],
-            }
         else:
-            last_ip = None
             last_instruction = None
+            last_ip = None
+
+        next_instruction = self._get_instruction(self.cpu.ip)
+        next_ip = utils.word_to_str(self.cpu.ip)
+
         return (
             HTTPStatus.OK,
             {
@@ -123,6 +122,8 @@ class Debugger:
                     'shutdown': self.cpu.shutdown,
                     'last_instruction': last_instruction,
                     'last_ip': last_ip,
+                    'next_instruction': next_instruction,
+                    'next_ip': next_ip,
                 },
                 'clock': {
                     'cycle_count': self.clock.cycle_count,
@@ -168,6 +169,23 @@ class Debugger:
                 utils.byte_to_str(self.memory.read_byte(first_address + idx))
                 for idx in range(length)
             ],
+        }
+
+    def _get_instruction(self, ip):
+        inst_opcode, operand_buffer = self.cpu.read_instruction(ip)
+        instruction = self.cpu.parse_instruction(inst_opcode, operand_buffer)
+        last_idx = 0
+        operands = []
+        for op, idx in zip(instruction.operands, instruction.operand_buffer_indices):
+            operands.append({
+                'name': operand_to_str(op),
+                'opcode': utils.binary_to_str(operand_buffer[last_idx:idx]),
+            })
+            last_idx = idx
+        return {
+            'name': instruction.__class__.__name__,
+            'opcode': utils.byte_to_str(inst_opcode),
+            'operands': operands,
         }
 
     def _handle_post(self, path, headers, rfile):

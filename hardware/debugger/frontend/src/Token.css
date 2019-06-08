@@ -1,0 +1,13 @@
+.token {
+    display: inline-block;
+    background: rgb(240, 240, 240);
+    padding: 5px;
+    margin: 5px;
+    text-align: center;
+}
+.token-name {
+    padding-bottom: 10px;
+}
+.token-opcode {
+    font-size: 9pt;
+}
