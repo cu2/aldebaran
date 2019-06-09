@@ -2,6 +2,7 @@ import React from 'react';
 import { Stack, StackType } from './Stack';
 import { Memory, MemoryType } from './Memory';
 import { Token } from './Token';
+import { Userlog } from './Userlog';
 import { decToHex } from './utils';
 import './App.css';
 
@@ -11,6 +12,7 @@ type InternalType = {
   stack: StackType;
   cpu: any;
   clock: any;
+  user_log: string[];
 };
 
 interface Props {};
@@ -103,20 +105,22 @@ export class App extends React.Component<Props, State> {
           <div>halt = {internal.cpu.halt ? 'HALT' : '-'}</div>
           <div>shutdown = {internal.cpu.shutdown ? 'SHUTDOWN' : '-'}</div>
           <div>IP = {internal.registers.IP}</div>
-          <h2>Next instruction @ {internal.cpu.next_ip}</h2>
-          <div>
-            <Token
-              name={internal.cpu.next_instruction.name}
-              opcode={internal.cpu.next_instruction.opcode}
-            />
-            { internal.cpu.next_instruction.operands.map((operand: any, idx: number) =>
+          { internal.cpu.next_instruction ? <div>
+            <h2>Next instruction @ {internal.cpu.next_ip}</h2>
+            <div>
               <Token
-                key={idx}
-                name={operand.name}
-                opcode={operand.opcode}
+                name={internal.cpu.next_instruction.name}
+                opcode={internal.cpu.next_instruction.opcode}
               />
-            )}
-          </div>
+              { internal.cpu.next_instruction.operands.map((operand: any, idx: number) =>
+                <Token
+                  key={idx}
+                  name={operand.name}
+                  opcode={operand.opcode}
+                />
+              )}
+            </div>
+          </div> : null}
           { internal.cpu.last_instruction ? <div>
             <h2>Last instruction @ {internal.cpu.last_ip}</h2>
             <div>
@@ -144,6 +148,11 @@ export class App extends React.Component<Props, State> {
           <div>--</div>
           <div>SI = {internal.registers.SI}</div>
           <div>DI = {internal.registers.DI}</div>
+        </div>
+        <div className="app-userlog">
+          <Userlog
+            userlog={internal.user_log}
+          />
         </div>
         <div className="app-stack">
           <Stack

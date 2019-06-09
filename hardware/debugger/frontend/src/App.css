@@ -8,10 +8,13 @@ body {
     justify-content: space-between;
 }
 .app-cpu {
-    flex: 0 1 50%;
+    flex: 0 1 45%;
+}
+.app-userlog {
+    flex: 0 1 15%;
 }
 .app-stack {
-    flex: 0 1 25%;
+    flex: 0 1 15%;
 }
 .app-memory {
     flex: 0 1 25%;

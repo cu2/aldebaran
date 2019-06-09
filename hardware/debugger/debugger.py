@@ -11,7 +11,7 @@ from urllib.parse import urlparse, parse_qs
 from instructions.operands import WORD_REGISTERS, operand_to_str
 from utils import config
 from utils import utils
-from utils.errors import ArchitectureError
+from utils.errors import ArchitectureError, AldebaranError
 from utils.utils import GenericRequestHandler, GenericServer
 from hardware.memory.memory import SegfaultError
 
@@ -32,6 +32,7 @@ class Debugger:
     def __init__(self, host, port):
         self._server = GenericServer((host, port), GenericRequestHandler, self._handle_get, self._handle_post)
         self._input_thread = threading.Thread(target=self._server.serve_forever)
+        self._user_log = []
 
         self.cpu = None
         self.clock = None
@@ -66,6 +67,12 @@ class Debugger:
         self._server.server_close()
         self._input_thread.join()
         logger.info('Stopped.')
+
+    def user_log(self, message):
+        '''
+        Append message to user log
+        '''
+        self._user_log.append(message)
 
     def _handle_get(self, path):
         '''
@@ -109,8 +116,12 @@ class Debugger:
             last_instruction = None
             last_ip = None
 
-        next_instruction = self._get_instruction(self.cpu.ip)
-        next_ip = utils.word_to_str(self.cpu.ip)
+        if self.cpu.shutdown:
+            next_instruction = None
+            next_ip = None
+        else:
+            next_instruction = self._get_instruction(self.cpu.ip)
+            next_ip = utils.word_to_str(self.cpu.ip)
 
         return (
             HTTPStatus.OK,
@@ -127,7 +138,8 @@ class Debugger:
                 },
                 'clock': {
                     'cycle_count': self.clock.cycle_count,
-                }
+                },
+                'user_log': self._user_log,
             }
         )
 
@@ -173,7 +185,10 @@ class Debugger:
 
     def _get_instruction(self, ip):
         inst_opcode, operand_buffer = self.cpu.read_instruction(ip)
-        instruction = self.cpu.parse_instruction(inst_opcode, operand_buffer)
+        try:
+            instruction = self.cpu.parse_instruction(inst_opcode, operand_buffer)
+        except AldebaranError:
+            return None
         last_idx = 0
         operands = []
         for op, idx in zip(instruction.operands, instruction.operand_buffer_indices):

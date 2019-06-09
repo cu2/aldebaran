@@ -38,9 +38,10 @@ class CPU:
         self.interrupt_controller = None
         self.device_controller = None
         self.timer = None
+        self.debugger = None
         self.architecture_registered = False
 
-    def register_architecture(self, registers, stack, memory, interrupt_controller, device_controller, timer):
+    def register_architecture(self, registers, stack, memory, interrupt_controller, device_controller, timer, debugger):
         '''
         Register other internal devices
         '''
@@ -51,6 +52,7 @@ class CPU:
         self.interrupt_controller = interrupt_controller
         self.device_controller = device_controller
         self.timer = timer
+        self.debugger = debugger
         self.architecture_registered = True
 
     def step(self):
@@ -102,6 +104,8 @@ class CPU:
         Log message to user log
         '''
         logger_user.info(message, *args)
+        if self.debugger:
+            self.debugger.user_log(message)
 
     def cpu_log(self, message, *args):
         '''

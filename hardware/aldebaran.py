@@ -41,6 +41,7 @@ class Aldebaran:
             self.interrupt_controller,
             self.device_controller,
             self.timer,
+            self.debugger,
         )
         self.clock.register_architecture(self.cpu)
         self.device_controller.register_architecture(self.interrupt_controller)
