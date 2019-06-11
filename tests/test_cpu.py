@@ -63,11 +63,13 @@ class TestStack(unittest.TestCase):
         self.interrupt_controller = Mock()
         self.device_controller = Mock()
         self.timer = Mock()
+        self.debugger = None
         self.cpu.register_architecture(
             self.registers, self.stack, self.ram,
             self.interrupt_controller,
             self.device_controller,
             self.timer,
+            self.debugger,
         )
 
     def test_instructions(self):
