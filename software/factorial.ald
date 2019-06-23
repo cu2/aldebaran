@@ -33,7 +33,7 @@ FACT:
         .PARAMB $param
 
         # SUBMAIN:
-        JNZ $param NONZERO  # param == 0?
+        JNE $param 0x00 NONZERO  # param == 0?
         MOV AX 0x0001  # AX = 1
         JMP EPILOGUE
 

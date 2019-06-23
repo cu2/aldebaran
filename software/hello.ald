@@ -5,8 +5,8 @@
         MOV CX 0x00
 LOOP:
         PRINTCHAR [TEXT+CX]B
-        ADD CX CX 0x01
-        JLT CX [TEXT_LENGTH]B LOOP
+        INC CX 0x01
+        JL CX [TEXT_LENGTH]B LOOP
         SHUTDOWN
 
 # DATA

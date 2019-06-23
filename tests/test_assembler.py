@@ -14,7 +14,7 @@ class TestAssembler(unittest.TestCase):
         self.instruction_set = [
             (0x12, instruction_set.arithmetic.ADD),
             (0x34, instruction_set.data_transfer.MOV),
-            (0x56, instruction_set.control_flow.JMP),
+            (0x56, instruction_set.jump.JMP),
             (0x78, instruction_set.misc.NOP),
             (0x9A, instruction_set.misc.SHUTDOWN),
             (0xBC, instruction_set.control_flow.ENTER),
