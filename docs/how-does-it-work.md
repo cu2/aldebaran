@@ -40,18 +40,18 @@ The executable has a header:
 
 After the header comes the opcode (machine code) for the program. For the above source code it looks like this:
 ```
-00 A0 80 00 01 80 00 02 2B A0 2E
+10 A0 80 00 01 80 00 02 04 A0 03
 ```
 
 Which could be disassembled like this:
 
-- `00`: instruction ADD
+- `10`: instruction ADD
 - `A0`: word register AX
 - `80 00 01`: word literal 0x0001
 - `80 00 02`: word literal 0x0002
-- `2B`: instruction PRINT
+- `04`: instruction PRINT
 - `A0`: word register AX
-- `2E`: instruction SHUTDOWN
+- `03`: instruction SHUTDOWN
 
 
 ## Devices

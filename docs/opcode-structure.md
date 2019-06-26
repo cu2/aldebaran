@@ -12,11 +12,11 @@ ADD AX 0x0001 0x0002
 
 can be assembled into this opcode:
 ```
-00 A0 80 00 01 80 00 02
+10 A0 80 00 01 80 00 02
 ```
 
 where:
-- instruction: `00` = ADD
+- instruction: `10` = ADD
 - operand 0: `A0` = word register AX
 - operand 1: `80 00 01` = word literal 0x0001
 - operand 2: `80 00 02` = word literal 0x0002
