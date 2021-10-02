@@ -1,7 +1,5 @@
 # Aldebaran
 
-[![Build Status](https://travis-ci.org/cu2/aldebaran.svg?branch=master)](https://travis-ci.org/cu2/aldebaran)
-
 Aldebaran is a 16-bit computer with 64kB RAM emulated in Python.
 
 The specs are partly based on the IBM PC XT, but mostly follow my own design, based on ideas coming from various sources. In spite of the totally inefficient technology (namely Python) it reached the blazing speed of 10-15 kHz on a Macbook Air.
