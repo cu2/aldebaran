@@ -1,4 +1,4 @@
-# How to install
+# How to install?
 
 ```
 git clone https://github.com/cu2/aldebaran.git

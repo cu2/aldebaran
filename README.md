@@ -36,5 +36,6 @@ Run executable:
 
 ## How can you play with it?
 
-- [How to install](docs/how-to-install.md)
-- [How to use](docs/how-to-use.md)
+- [How to install?](docs/how-to-install.md)
+- [How to use?](docs/how-to-use.md)
+- [How to use the debugger?](docs/how-to-use-the-debugger.md)

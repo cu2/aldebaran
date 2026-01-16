@@ -1,6 +1,6 @@
 import React from 'react';
-import { Stack, StackType } from './Stack';
-import { Memory, MemoryType } from './Memory';
+import { Stack, type StackType } from './Stack';
+import { Memory, type MemoryType } from './Memory';
 import { Token } from './Token';
 import { Userlog } from './Userlog';
 import { decToHex } from './utils';
@@ -25,7 +25,7 @@ interface State {
 };
 
 export class App extends React.Component<Props, State> {
-  interval?: NodeJS.Timeout;
+  interval?: number;
 
   constructor(props: Props) {
     super(props);
